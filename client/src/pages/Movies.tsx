@@ -11,6 +11,7 @@ type Movie = {
   vote_average: number;
   release_date: string;
   genre_ids: number[];
+  poster_url?: string;
 };
 
 const Movies: React.FC = () => {
@@ -20,6 +21,10 @@ const Movies: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [loadingProgress, setLoadingProgress] = useState<string>('');
+  const [useDatabase, setUseDatabase] = useState<boolean>(false);
+  const [genre, setGenre] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
   // Read search query from URL parameters on component mount
@@ -30,7 +35,7 @@ const Movies: React.FC = () => {
 
   useEffect(() => {
     loadMovies(searchQuery);
-  }, [searchQuery]);
+  }, [searchQuery, useDatabase, genre, dateFrom, dateTo]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -51,30 +56,43 @@ const Movies: React.FC = () => {
       setLoadingProgress('');
 
       let allMovies: any[] = [];
-      const maxPages = searchTerm.trim() ? 2 : 3; // Reduced: 2 pages for search, 3 for popular
-      
-      // Load pages in parallel for faster loading
-      const pagePromises = [];
-      for (let page = 1; page <= maxPages; page++) {
-        if (searchTerm.trim()) {
-          pagePromises.push(api.get(`/movies/tmdb/search?q=${encodeURIComponent(searchTerm)}&page=${page}`));
-        } else {
-          pagePromises.push(api.get(`/movies/tmdb/popular?page=${page}`));
+      if (useDatabase) {
+        // Query our DB with filters
+        const params: any = { limit: 40 };
+        if (searchTerm.trim()) params.title = searchTerm.trim();
+        if (genre) params.genre = genre;
+        if (dateFrom) params.releaseDateFrom = dateFrom;
+        if (dateTo) params.releaseDateTo = dateTo;
+        const resp = await api.get('/movies', { params });
+        allMovies = (resp.data.movies || []).map((m: any) => ({
+          id: m._id,
+          title: m.title,
+          overview: m.description,
+          poster_path: m.poster?.startsWith('http') ? '' : m.poster,
+          backdrop_path: '',
+          vote_average: m.imdbRating || 0,
+          release_date: m.releaseDate ? new Date(m.releaseDate).toISOString().split('T')[0] : '',
+          genre_ids: []
+        }));
+      } else {
+        const maxPages = searchTerm.trim() ? 2 : 3; // 2 pages for search, 3 for popular
+        const pagePromises = [];
+        for (let page = 1; page <= maxPages; page++) {
+          if (searchTerm.trim()) {
+            pagePromises.push(api.get(`/movies/tmdb/search?q=${encodeURIComponent(searchTerm)}&page=${page}`));
+          } else {
+            pagePromises.push(api.get(`/movies/tmdb/popular?page=${page}`));
+          }
         }
+        setLoadingProgress(`Loading ${maxPages} pages simultaneously...`);
+        const responses = await Promise.allSettled(pagePromises);
+        responses.forEach((response) => {
+          if (response.status === 'fulfilled' && response.value.data.results) {
+            allMovies = [...allMovies, ...response.value.data.results];
+            setLoadingProgress(`Loaded ${allMovies.length} movies...`);
+          }
+        });
       }
-      
-      setLoadingProgress(`Loading ${maxPages} pages simultaneously...`);
-      
-      // Execute all requests in parallel
-      const responses = await Promise.allSettled(pagePromises);
-      
-      // Process successful responses
-      responses.forEach((response, index) => {
-        if (response.status === 'fulfilled' && response.value.data.results) {
-          allMovies = [...allMovies, ...response.value.data.results];
-          setLoadingProgress(`Loaded ${allMovies.length} movies...`);
-        }
-      });
       
       // If no movies found and it's a search, show helpful message
       if (allMovies.length === 0 && searchTerm.trim()) {
@@ -139,7 +157,7 @@ const Movies: React.FC = () => {
         </p>
       )}
 
-      {/* Search Bar */}
+      {/* Search & Filters */}
       <form onSubmit={handleSearch} style={{ marginBottom: '30px' }}>
         <div className="card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -194,6 +212,29 @@ const Movies: React.FC = () => {
                 Clear
               </button>
             )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginTop: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input type="checkbox" checked={useDatabase} onChange={(e) => setUseDatabase(e.target.checked)} />
+              <span>Search in Database</span>
+            </label>
+            <select value={genre} onChange={(e) => setGenre(e.target.value)} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }}>
+              <option value="">All Genres</option>
+              {/* Static fallback; optional improvement: fetch from backend */}
+              <option>Action</option><option>Adventure</option><option>Animation</option><option>Biography</option>
+              <option>Comedy</option><option>Crime</option><option>Documentary</option><option>Drama</option>
+              <option>Family</option><option>Fantasy</option><option>Film-Noir</option><option>History</option>
+              <option>Horror</option><option>Music</option><option>Musical</option><option>Mystery</option>
+              <option>Romance</option><option>Sci-Fi</option><option>Sport</option><option>Thriller</option>
+              <option>War</option><option>Western</option>
+            </select>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }} />
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '8px' }} />
+          </div>
+          <div style={{ marginTop: '12px', display: 'flex', gap: '10px' }}>
+            <button type="button" onClick={() => { setGenre(''); setDateFrom(''); setDateTo(''); }} style={{ background: '#f5f5f5', border: '1px solid #ddd', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer' }}>
+              Reset Filters
+            </button>
           </div>
         </div>
       </form>
@@ -308,7 +349,7 @@ const Movies: React.FC = () => {
               >
                 <div style={{ position: 'relative' }}>
                   <img 
-                    src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                    src={movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750/333/fff?text=No+Image')}
                     alt={movie.title}
                     style={{ 
                       width: '100%', 
@@ -475,7 +516,9 @@ const Movies: React.FC = () => {
               {/* Movie Poster */}
               <div>
                 <img 
-                  src={selectedMovie.poster_url || `https://image.tmdb.org/t/p/w500${selectedMovie.poster_path}`}
+                  src={selectedMovie.poster_path 
+                    ? `https://image.tmdb.org/t/p/w500${selectedMovie.poster_path}` 
+                    : 'https://via.placeholder.com/500x750/333/fff?text=No+Image'}
                   alt={selectedMovie.title}
                   style={{ 
                     width: '100%', 

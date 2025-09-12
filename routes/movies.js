@@ -14,7 +14,10 @@ router.get('/', [
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('genre').optional().isString().withMessage('Genre must be a string'),
   query('status').optional().isIn(['upcoming', 'now_showing', 'ended']).withMessage('Invalid status'),
-  query('search').optional().isString().withMessage('Search must be a string')
+  query('search').optional().isString().withMessage('Search must be a string'),
+  query('title').optional().isString().withMessage('Title must be a string'),
+  query('releaseDateFrom').optional().isISO8601().withMessage('releaseDateFrom must be a valid date'),
+  query('releaseDateTo').optional().isISO8601().withMessage('releaseDateTo must be a valid date')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -42,6 +45,23 @@ router.get('/', [
     
     if (req.query.search) {
       filter.$text = { $search: req.query.search };
+    }
+
+    if (req.query.title) {
+      filter.title = { $regex: req.query.title, $options: 'i' };
+    }
+
+    if (req.query.releaseDateFrom || req.query.releaseDateTo) {
+      filter.releaseDate = {};
+      if (req.query.releaseDateFrom) {
+        filter.releaseDate.$gte = new Date(req.query.releaseDateFrom);
+      }
+      if (req.query.releaseDateTo) {
+        // include the entire end day by setting to end-of-day
+        const to = new Date(req.query.releaseDateTo);
+        to.setHours(23, 59, 59, 999);
+        filter.releaseDate.$lte = to;
+      }
     }
 
     // Execute query

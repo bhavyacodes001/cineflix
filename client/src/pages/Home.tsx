@@ -26,6 +26,7 @@ const Home: React.FC = () => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [featuredMovies, setFeaturedMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -54,10 +55,15 @@ const Home: React.FC = () => {
           status: 'now_showing'
         }));
         
-        // Combine local movies with TMDB movies to get at least 20
-        const allMovies = [...localMovies, ...convertedTmdbMovies];
-        
-        setMovies(allMovies);
+        // Combine and de-duplicate by title to avoid repeats
+        const combined = [...localMovies, ...convertedTmdbMovies];
+        const uniqueByTitle = new Map<string, any>();
+        combined.forEach((m: any) => {
+          const key = (m.title || '').toLowerCase().trim();
+          if (key && !uniqueByTitle.has(key)) uniqueByTitle.set(key, m);
+        });
+
+        setMovies(Array.from(uniqueByTitle.values()));
         setFeaturedMovies(featuredMovies);
       } catch (error) {
         console.error('Error fetching movies:', error);
@@ -71,6 +77,14 @@ const Home: React.FC = () => {
 
     fetchMovies();
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedMovie) setSelectedMovie(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [selectedMovie]);
 
   // Use featured movies for hero section, fallback to regular movies
   // Ensure we have at least 5 movies for the carousel
@@ -326,13 +340,22 @@ const Home: React.FC = () => {
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: '20px'
         }}>
-          {movies.slice(0, 20).map((movie, index) => (
-            <a 
-              key={movie._id} 
-              href={`/movies/${movie._id}`} 
+          {movies.slice(0, 20).map((movie) => {
+            const isMongoId = typeof movie._id === 'string' && /^[a-f0-9]{24}$/i.test(movie._id);
+            return (
+            <div 
+              key={movie._id}
               style={{ textDecoration: 'none' }}
             >
-              <div style={{
+              <div 
+              onClick={() => { 
+                if (isMongoId) { 
+                  window.location.href = `/movies/${movie._id}`; 
+                } else {
+                  setSelectedMovie(movie);
+                }
+              }}
+              style={{
                 background: 'white',
                 borderRadius: '12px',
                 overflow: 'hidden',
@@ -441,8 +464,8 @@ const Home: React.FC = () => {
                   </p>
                 </div>
               </div>
-            </a>
-          ))}
+            </div>
+          );})}
         </div>
 
         {/* View All Movies Button */}
@@ -479,6 +502,53 @@ const Home: React.FC = () => {
           </div>
         )}
       </div>
+      {selectedMovie && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '20px'
+        }}
+        onClick={() => setSelectedMovie(null)}
+        >
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '20px', maxWidth: '800px', width: '100%',
+            maxHeight: '90vh', overflow: 'auto', position: 'relative'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedMovie(null)}
+              style={{ position: 'absolute', top: 15, right: 15, background: 'rgba(255,255,255,0.1)',
+                color: 'white', border: 'none', padding: '8px 12px', borderRadius: '50%', cursor: 'pointer' }}
+            >✕</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', padding: '24px' }}>
+              <div>
+                <img src={selectedMovie!.poster} alt={selectedMovie!.title} style={{ width: '100%', height: '380px', objectFit: 'cover', borderRadius: 12 }} />
+              </div>
+              <div style={{ color: 'white' }}>
+                <h2 style={{ margin: '0 0 10px 0' }}>{selectedMovie!.title}</h2>
+                <p style={{ color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>{selectedMovie!.description}</p>
+                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                  <span style={{ background: '#e50914', color: 'white', padding: '6px 10px', borderRadius: 16 }}>⭐ {selectedMovie!.imdbRating?.toFixed(1)}</span>
+                  {selectedMovie!.genre?.[0] && <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '6px 10px', borderRadius: 16 }}>{selectedMovie!.genre[0]}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                  <button
+                    onClick={() => {
+                      const q = encodeURIComponent(`${selectedMovie!.title} official trailer`);
+                      window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank');
+                    }}
+                    style={{ background: 'linear-gradient(135deg, #e50914, #b20710)', color: 'white', border: 'none', padding: '10px 16px', borderRadius: 20, cursor: 'pointer' }}
+                  >▶️ Watch Trailer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

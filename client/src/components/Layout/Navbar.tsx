@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
@@ -10,7 +10,7 @@ const Navbar: React.FC = () => {
   const isLoggedIn = localStorage.getItem('token');
   const locationDropdownRef = useRef<HTMLDivElement>(null);
 
-  const cities = [
+  const cities = useMemo(() => [
     { name: 'Mumbai', state: 'Maharashtra' },
     { name: 'Delhi', state: 'Delhi' },
     { name: 'Bangalore', state: 'Karnataka' },
@@ -31,7 +31,7 @@ const Navbar: React.FC = () => {
     { name: 'Patna', state: 'Bihar' },
     { name: 'Vadodara', state: 'Gujarat' },
     { name: 'Ghaziabad', state: 'Uttar Pradesh' }
-  ];
+  ], []);
 
   const currentCity = cities.find(city => city.name === selectedCity) || { name: selectedCity, state: '' };
 
@@ -416,15 +416,20 @@ const Navbar: React.FC = () => {
           }}>
             Movies
           </a>
-          <a href="/theaters" style={{
-            color: '#666',
-            textDecoration: 'none',
-            fontSize: '16px',
-            fontWeight: '500',
-            transition: 'color 0.2s'
-          }}>
-            Theaters
-          </a>
+          {isLoggedIn && (
+            <a href="/bookings" style={{
+              color: window.location.pathname === '/bookings' ? '#e50914' : '#666',
+              textDecoration: 'none',
+              fontSize: '16px',
+              fontWeight: '600',
+              borderBottom: window.location.pathname === '/bookings' ? '2px solid #e50914' : 'none',
+              paddingBottom: '4px',
+              transition: 'color 0.2s'
+            }}>
+              My Bookings
+            </a>
+          )}
+          
         </div>
 
         {/* Search and Profile */}
@@ -466,7 +471,7 @@ const Navbar: React.FC = () => {
             </button>
           </form>
 
-          {isLoggedIn ? (
+          {isLoggedIn && (
             <div style={{
               width: '36px',
               height: '36px',
@@ -482,23 +487,6 @@ const Navbar: React.FC = () => {
             }} onClick={handleLogout}>
               U
             </div>
-          ) : (
-            <a href="/login" style={{
-              background: 'linear-gradient(135deg, #e50914, #b20710)',
-              color: 'white',
-              textDecoration: 'none',
-              padding: '8px 20px',
-              borderRadius: '20px',
-              fontSize: '14px',
-              fontWeight: '600',
-              boxShadow: '0 2px 8px rgba(229,9,20,0.3)',
-              transition: 'transform 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              Sign In
-            </a>
           )}
         </div>
       </div>
