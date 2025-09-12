@@ -338,23 +338,68 @@ const Home: React.FC = () => {
                 overflow: 'hidden',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                 transition: 'transform 0.3s ease',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                position: 'relative'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-8px)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px)';
+                // Show trailer button on hover
+                const trailerBtn = e.currentTarget.querySelector('.trailer-btn') as HTMLElement;
+                if (trailerBtn) trailerBtn.style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                // Hide trailer button
+                const trailerBtn = e.currentTarget.querySelector('.trailer-btn') as HTMLElement;
+                if (trailerBtn) trailerBtn.style.opacity = '0';
+              }}
               >
-                <img 
-                  src={movie.poster}
-                  alt={movie.title}
-                  style={{ 
-                    width: '100%', 
-                    height: '280px', 
-                    objectFit: 'cover'
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=400&auto=format&fit=crop';
-                  }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <img 
+                    src={movie.poster}
+                    alt={movie.title}
+                    style={{ 
+                      width: '100%', 
+                      height: '280px', 
+                      objectFit: 'cover'
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=400&auto=format&fit=crop';
+                    }}
+                  />
+                  {/* Trailer Button Overlay */}
+                  <button
+                    className="trailer-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const searchQuery = encodeURIComponent(`${movie.title} official trailer`);
+                      const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
+                      window.open(youtubeUrl, '_blank');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      background: 'rgba(229,9,20,0.9)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 20px',
+                      borderRadius: '25px',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      opacity: '0',
+                      transition: 'all 0.3s ease',
+                      backdropFilter: 'blur(10px)',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+                    }}
+                    title="Watch trailer on YouTube"
+                  >
+                    ▶️ Trailer
+                  </button>
+                </div>
                 <div style={{ padding: '12px' }}>
                   <h3 style={{ 
                     margin: '0 0 4px 0', 

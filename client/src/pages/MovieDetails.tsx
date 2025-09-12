@@ -27,7 +27,6 @@ const MovieDetails: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'overview' | 'cast' | 'reviews'>('overview');
-  const [showTrailer, setShowTrailer] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -379,7 +378,22 @@ const MovieDetails: React.FC = () => {
                 </button>
                 
                 <button
-                  onClick={() => setShowTrailer(true)}
+                  onClick={() => {
+                    // Create multiple trailer search options
+                    const movieYear = new Date(movie.releaseDate).getFullYear();
+                    const searchQueries = [
+                      `${movie.title} ${movieYear} official trailer`,
+                      `${movie.title} trailer ${movieYear}`,
+                      `${movie.title} official trailer`
+                    ];
+                    
+                    // Try the most specific search first
+                    const searchQuery = encodeURIComponent(searchQueries[0]);
+                    const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
+                    
+                    // Open in new tab
+                    window.open(youtubeUrl, '_blank');
+                  }}
                   style={{
                     background: 'rgba(255,255,255,0.1)',
                     color: 'white',
@@ -400,8 +414,9 @@ const MovieDetails: React.FC = () => {
                     e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
+                  title={`Search for "${movie.title}" trailer on YouTube`}
                 >
-                  ▶️ Watch Trailer
+                  ▶️ Watch Trailer on YouTube
                 </button>
               </div>
             </div>
@@ -551,56 +566,6 @@ const MovieDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Trailer Modal */}
-      {showTrailer && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.9)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          backdropFilter: 'blur(10px)'
-        }}>
-          <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '90%' }}>
-            <button
-              onClick={() => setShowTrailer(false)}
-              style={{
-                position: 'absolute',
-                top: '-50px',
-                right: '0',
-                background: 'rgba(255,255,255,0.1)',
-                color: 'white',
-                border: 'none',
-                padding: '10px 15px',
-                borderRadius: '50%',
-                fontSize: '20px',
-                cursor: 'pointer',
-                zIndex: 1001
-              }}
-            >
-              ✕
-            </button>
-            <div style={{
-              width: '800px',
-              height: '450px',
-              background: 'linear-gradient(135deg, #667eea, #764ba2)',
-              borderRadius: '15px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '24px'
-            }}>
-              🎬 Trailer Coming Soon
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* CSS Animations */}
       <style>{`

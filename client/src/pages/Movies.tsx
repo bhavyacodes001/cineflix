@@ -219,23 +219,66 @@ const Movies: React.FC = () => {
                 overflow: 'hidden',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                 transition: 'transform 0.3s ease',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                position: 'relative'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-8px)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-8px)';
+                const trailerBtn = e.currentTarget.querySelector('.trailer-btn') as HTMLElement;
+                if (trailerBtn) trailerBtn.style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                const trailerBtn = e.currentTarget.querySelector('.trailer-btn') as HTMLElement;
+                if (trailerBtn) trailerBtn.style.opacity = '0';
+              }}
               >
-                <img 
-                  src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-                  alt={movie.title}
-                  style={{ 
-                    width: '100%', 
-                    height: '300px', 
-                    objectFit: 'cover'
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.src = 'https://via.placeholder.com/500x750/333/fff?text=No+Image';
-                  }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <img 
+                    src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                    alt={movie.title}
+                    style={{ 
+                      width: '100%', 
+                      height: '300px', 
+                      objectFit: 'cover'
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://via.placeholder.com/500x750/333/fff?text=No+Image';
+                    }}
+                  />
+                  {/* Trailer Button Overlay */}
+                  <button
+                    className="trailer-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const searchQuery = encodeURIComponent(`${movie.title} official trailer`);
+                      const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
+                      window.open(youtubeUrl, '_blank');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      background: 'rgba(229,9,20,0.9)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 16px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      opacity: '0',
+                      transition: 'all 0.3s ease',
+                      backdropFilter: 'blur(10px)',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+                    }}
+                    title="Watch trailer on YouTube"
+                  >
+                    ▶️ Trailer
+                  </button>
+                </div>
                 <div style={{ padding: '15px' }}>
                   <h3 style={{ 
                     margin: '0 0 8px 0', 
