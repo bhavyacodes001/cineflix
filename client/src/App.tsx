@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import Movies from './pages/Movies';
 import MovieDetails from './pages/MovieDetails';
 import Showtimes from './pages/Showtimes';
+import SeatSelection from './pages/SeatSelection';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
           <Route path="/movies" element={<Movies />} />
           <Route path="/movies/:id" element={<MovieDetails />} />
           <Route path="/showtimes" element={<Showtimes />} />
+          <Route path="/showtimes/:id" element={<SeatSelection />} />
         </Routes>
       </div>
     </Router>

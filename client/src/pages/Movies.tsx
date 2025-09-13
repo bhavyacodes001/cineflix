@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../utils/api';
 
 type Movie = {
-  id: number;
+  id: string | number;
   title: string;
   overview: string;
   poster_path: string;
@@ -26,6 +26,10 @@ const Movies: React.FC = () => {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const navigate = useNavigate();
 
   // Read search query from URL parameters on component mount
   useEffect(() => {
@@ -33,9 +37,80 @@ const Movies: React.FC = () => {
     setSearchQuery(urlSearchQuery);
   }, [searchParams]);
 
+  const fetchMovies = useCallback(async (searchTerm: string = '', page: number = 1, append: boolean = false) => {
+    try {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      setError('');
+      setLoadingProgress('');
+
+      let pageMovies: any[] = [];
+      if (useDatabase) {
+        const params: any = { limit: 20, page };
+        if (searchTerm.trim()) params.title = searchTerm.trim();
+        if (genre) params.genre = genre;
+        if (dateFrom) params.releaseDateFrom = dateFrom;
+        if (dateTo) params.releaseDateTo = dateTo;
+        const resp = await api.get('/movies', { params });
+        pageMovies = (resp.data.movies || []).map((m: any) => ({
+          id: m._id,
+          title: m.title,
+          overview: m.description,
+          poster_path: m.poster?.startsWith('http') ? '' : m.poster,
+          backdrop_path: '',
+          vote_average: m.imdbRating || 0,
+          release_date: m.releaseDate ? new Date(m.releaseDate).toISOString().split('T')[0] : '',
+          genre_ids: []
+        }));
+        setTotalPages(resp.data?.pagination?.totalPages || 1);
+        setCurrentPage(resp.data?.pagination?.currentPage || page);
+      } else {
+        const isSearch = Boolean(searchTerm.trim());
+        const endpoint = isSearch ? '/movies/tmdb/search' : '/movies/tmdb/popular';
+        const params: any = isSearch ? { q: searchTerm.trim(), page } : { page };
+        const resp = await api.get(endpoint, { params });
+        pageMovies = resp.data?.results || [];
+        setTotalPages(resp.data?.total_pages || 1);
+        setCurrentPage(resp.data?.page || page);
+      }
+
+      if (pageMovies.length === 0) {
+        if (!append) {
+          if (searchTerm.trim()) {
+            setError(`No movies found for "${searchTerm}". Try searching for popular titles like "Avengers", "Batman", or "Star Wars".`);
+          } else {
+            setError('Unable to load movies at the moment. Please try again later.');
+          }
+        }
+      } else {
+        setMovies(prev => append ? [...prev, ...pageMovies] : pageMovies);
+      }
+    } catch (err: any) {
+      if (err.response?.data?.message?.includes('TMDB API key not configured')) {
+        setError('🔑 TMDB API key not configured. Please add your API key to the .env file.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to load movies');
+      }
+    } finally {
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
+      setLoadingProgress('');
+    }
+  }, [useDatabase, genre, dateFrom, dateTo]);
+
   useEffect(() => {
-    loadMovies(searchQuery);
-  }, [searchQuery, useDatabase, genre, dateFrom, dateTo]);
+    // Reset pagination and load first page when filters change
+    setCurrentPage(1);
+    setTotalPages(1);
+    setMovies([]);
+    fetchMovies(searchQuery, 1, false);
+  }, [searchQuery, useDatabase, genre, dateFrom, dateTo, fetchMovies]);
 
   // Handle Escape key to close modal
   useEffect(() => {
@@ -49,71 +124,7 @@ const Movies: React.FC = () => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [selectedMovie]);
 
-  const loadMovies = async (searchTerm: string = '') => {
-    try {
-      setLoading(true);
-      setError('');
-      setLoadingProgress('');
-
-      let allMovies: any[] = [];
-      if (useDatabase) {
-        // Query our DB with filters
-        const params: any = { limit: 40 };
-        if (searchTerm.trim()) params.title = searchTerm.trim();
-        if (genre) params.genre = genre;
-        if (dateFrom) params.releaseDateFrom = dateFrom;
-        if (dateTo) params.releaseDateTo = dateTo;
-        const resp = await api.get('/movies', { params });
-        allMovies = (resp.data.movies || []).map((m: any) => ({
-          id: m._id,
-          title: m.title,
-          overview: m.description,
-          poster_path: m.poster?.startsWith('http') ? '' : m.poster,
-          backdrop_path: '',
-          vote_average: m.imdbRating || 0,
-          release_date: m.releaseDate ? new Date(m.releaseDate).toISOString().split('T')[0] : '',
-          genre_ids: []
-        }));
-      } else {
-        const maxPages = searchTerm.trim() ? 2 : 3; // 2 pages for search, 3 for popular
-        const pagePromises = [];
-        for (let page = 1; page <= maxPages; page++) {
-          if (searchTerm.trim()) {
-            pagePromises.push(api.get(`/movies/tmdb/search?q=${encodeURIComponent(searchTerm)}&page=${page}`));
-          } else {
-            pagePromises.push(api.get(`/movies/tmdb/popular?page=${page}`));
-          }
-        }
-        setLoadingProgress(`Loading ${maxPages} pages simultaneously...`);
-        const responses = await Promise.allSettled(pagePromises);
-        responses.forEach((response) => {
-          if (response.status === 'fulfilled' && response.value.data.results) {
-            allMovies = [...allMovies, ...response.value.data.results];
-            setLoadingProgress(`Loaded ${allMovies.length} movies...`);
-          }
-        });
-      }
-      
-      // If no movies found and it's a search, show helpful message
-      if (allMovies.length === 0 && searchTerm.trim()) {
-        setError(`No movies found for "${searchTerm}". Try searching for popular titles like "Avengers", "Batman", or "Star Wars".`);
-      } else if (allMovies.length === 0) {
-        setError('Unable to load movies at the moment. Please try again later.');
-      }
-      
-      setMovies(allMovies);
-      
-    } catch (err: any) {
-      if (err.response?.data?.message?.includes('TMDB API key not configured')) {
-        setError('🔑 TMDB API key not configured. Please add your API key to the .env file.');
-      } else {
-        setError(err.response?.data?.message || 'Failed to load movies');
-      }
-    } finally {
-      setLoading(false);
-      setLoadingProgress('');
-    }
-  };
+  // loadMovies replaced by fetchMovies (memoized)
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,13 +349,13 @@ const Movies: React.FC = () => {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-8px)';
-                  const trailerBtn = e.currentTarget.querySelector('.trailer-btn') as HTMLElement;
-                  if (trailerBtn) trailerBtn.style.opacity = '1';
+                  const overlayBtns = e.currentTarget.querySelectorAll('.overlay-btn');
+                  overlayBtns.forEach((btn) => ((btn as HTMLElement).style.opacity = '1'));
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  const trailerBtn = e.currentTarget.querySelector('.trailer-btn') as HTMLElement;
-                  if (trailerBtn) trailerBtn.style.opacity = '0';
+                  const overlayBtns = e.currentTarget.querySelectorAll('.overlay-btn');
+                  overlayBtns.forEach((btn) => ((btn as HTMLElement).style.opacity = '0'));
                 }}
               >
                 <div style={{ position: 'relative' }}>
@@ -360,9 +371,9 @@ const Movies: React.FC = () => {
                       e.currentTarget.src = 'https://via.placeholder.com/500x750/333/fff?text=No+Image';
                     }}
                   />
-                  {/* Trailer Button Overlay */}
+                  {/* Overlay Buttons */}
                   <button
-                    className="trailer-btn"
+                    className="overlay-btn"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -391,6 +402,47 @@ const Movies: React.FC = () => {
                     title="Watch trailer on YouTube"
                   >
                     ▶️ Trailer
+                  </button>
+                  <button
+                    className="overlay-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const isLocal = typeof movie.id === 'string';
+                      if (isLocal) {
+                        navigate(`/showtimes?movie=${movie.id}`);
+                      } else {
+                        const posterUrl = movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '');
+                        const qs = new URLSearchParams({
+                          movie: `tmdb:${String(movie.id)}`,
+                          title: movie.title,
+                          poster: posterUrl,
+                          rating: String(movie.vote_average || 0)
+                        }).toString();
+                        navigate(`/showtimes?${qs}`);
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '65%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      background: 'rgba(0,0,0,0.75)',
+                      color: 'white',
+                      border: '1px solid rgba(255,255,255,0.3)',
+                      padding: '10px 16px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      opacity: '0',
+                      transition: 'all 0.3s ease',
+                      backdropFilter: 'blur(10px)',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+                    }}
+                    title="Book tickets for this movie"
+                  >
+                    🎫 Book Tickets
                   </button>
                 </div>
                 <div style={{ padding: '15px' }}>
@@ -441,22 +493,68 @@ const Movies: React.FC = () => {
                       {new Date(movie.release_date).getFullYear()}
                     </span>
                   </div>
-                  <div style={{
-                    background: 'linear-gradient(135deg, #e50914, #b20710)',
-                    color: 'white',
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    boxShadow: '0 2px 8px rgba(229,9,20,0.3)'
-                  }}>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const isLocal = typeof movie.id === 'string';
+                      if (isLocal) {
+                        navigate(`/showtimes?movie=${movie.id}`);
+                      } else {
+                        const posterUrl = movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '');
+                        const qs = new URLSearchParams({
+                          movie: `tmdb:${String(movie.id)}`,
+                          title: movie.title,
+                          poster: posterUrl,
+                          rating: String(movie.vote_average || 0)
+                        }).toString();
+                        navigate(`/showtimes?${qs}`);
+                      }
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #e50914, #b20710)',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      boxShadow: '0 2px 8px rgba(229,9,20,0.3)',
+                      border: 'none',
+                      width: '100%',
+                      cursor: 'pointer'
+                    }}
+                  >
                     Book Tickets
-                  </div>
+                  </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Load More */}
+      {!loading && !error && movies.length > 0 && currentPage < totalPages && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+          <button
+            type="button"
+            onClick={() => fetchMovies(searchQuery, currentPage + 1, true)}
+            disabled={loadingMore}
+            style={{
+              background: loadingMore ? '#aaa' : 'linear-gradient(135deg, #e50914, #b20710)',
+              color: 'white',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: '25px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              cursor: loadingMore ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 15px rgba(229,9,20,0.3)'
+            }}
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </button>
         </div>
       )}
 
@@ -602,9 +700,19 @@ const Movies: React.FC = () => {
                   
                   <button
                     onClick={() => {
-                      // For TMDB movies, we can't book tickets directly
-                      // Show a message or redirect to search for local showtimes
-                      alert('This movie is from TMDB. Booking functionality coming soon!');
+                      const isLocal = typeof selectedMovie.id === 'string';
+                      if (isLocal) {
+                        navigate(`/showtimes?movie=${selectedMovie.id}`);
+                      } else {
+                        const posterUrl = selectedMovie.poster_url || (selectedMovie.poster_path ? `https://image.tmdb.org/t/p/w500${selectedMovie.poster_path}` : '');
+                        const qs = new URLSearchParams({
+                          movie: `tmdb:${String(selectedMovie.id)}`,
+                          title: selectedMovie.title,
+                          poster: posterUrl,
+                          rating: String(selectedMovie.vote_average || 0)
+                        }).toString();
+                        navigate(`/showtimes?${qs}`);
+                      }
                     }}
                     style={{
                       background: 'rgba(255,255,255,0.1)',

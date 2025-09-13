@@ -6,6 +6,8 @@ const Navbar: React.FC = () => {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState('Detecting...');
   const [isDetecting, setIsDetecting] = useState(true);
+  const [navElevated, setNavElevated] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const navigate = useNavigate();
   const isLoggedIn = localStorage.getItem('token');
   const locationDropdownRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,22 @@ const Navbar: React.FC = () => {
     };
   }, []);
 
+  // Elevate navbar on scroll with smooth transition
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        setNavElevated(window.scrollY > 10);
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true } as any);
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -148,14 +166,34 @@ const Navbar: React.FC = () => {
     window.location.href = '/';
   };
 
+  // 3D tilt helpers
+  const applyTilt = (e: React.MouseEvent<HTMLElement>, maxTilt = 8, pop = 6) => {
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+    const rotateY = (px - 0.5) * (maxTilt * 2);
+    const rotateX = (0.5 - py) * (maxTilt * 2);
+    el.style.transform = `perspective(700px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(${pop}px)`;
+    el.style.boxShadow = '0 10px 22px rgba(0,0,0,0.15)';
+  };
+
+  const resetTilt = (e: React.MouseEvent<HTMLElement>) => {
+    const el = e.currentTarget as HTMLElement;
+    el.style.transform = 'perspective(700px) rotateX(0deg) rotateY(0deg) translateZ(0)';
+    el.style.boxShadow = '';
+  };
+
   return (
     <nav style={{
-      background: 'white',
-      padding: '12px 0',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      background: navElevated ? 'rgba(255,255,255,0.92)' : 'white',
+      padding: navElevated ? '10px 0' : '12px 0',
+      boxShadow: navElevated ? '0 6px 20px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.1)',
       position: 'sticky',
       top: 0,
-      zIndex: 1000
+      zIndex: 1000,
+      backdropFilter: navElevated ? 'saturate(180%) blur(8px)' : 'none',
+      transition: 'all 200ms ease'
     }}>
       <div style={{
         maxWidth: '1200px',
@@ -181,7 +219,10 @@ const Navbar: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 4px 12px rgba(229,9,20,0.3)'
-            }}>
+            }}
+            onMouseMove={(e) => applyTilt(e, 10, 10)}
+            onMouseLeave={resetTilt}
+            >
               <span style={{ 
                 color: 'white',
                 fontSize: '20px',
@@ -243,7 +284,7 @@ const Navbar: React.FC = () => {
               color: '#999', 
               fontSize: '12px',
               transform: showLocationDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s'
+              transition: 'transform 200ms ease'
             }}>
               ▼
             </span>
@@ -259,12 +300,15 @@ const Navbar: React.FC = () => {
               background: 'white',
               border: '1px solid #e0e0e0',
               borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
               zIndex: 1000,
               maxHeight: '300px',
               overflowY: 'auto',
               marginTop: '4px',
-              minWidth: '250px'
+              minWidth: '250px',
+              transform: 'translateY(4px) scale(1)',
+              opacity: 1,
+              transition: 'transform 200ms ease, opacity 200ms ease'
             }}>
               <div style={{ 
                 padding: '12px 16px', 
@@ -401,8 +445,11 @@ const Navbar: React.FC = () => {
             fontWeight: '600',
             borderBottom: window.location.pathname === '/' ? '2px solid #e50914' : 'none',
             paddingBottom: '4px',
-            transition: 'color 0.2s'
-          }}>
+            transition: 'color 200ms ease'
+          }}
+          onMouseMove={(e) => applyTilt(e as any, 6, 6)}
+          onMouseLeave={resetTilt as any}
+          >
             Home
           </a>
           <a href="/movies" style={{
@@ -412,8 +459,11 @@ const Navbar: React.FC = () => {
             fontWeight: '600',
             borderBottom: window.location.pathname === '/movies' ? '2px solid #e50914' : 'none',
             paddingBottom: '4px',
-            transition: 'color 0.2s'
-          }}>
+            transition: 'color 200ms ease'
+          }}
+          onMouseMove={(e) => applyTilt(e as any, 6, 6)}
+          onMouseLeave={resetTilt as any}
+          >
             Movies
           </a>
           {isLoggedIn && (
@@ -424,8 +474,11 @@ const Navbar: React.FC = () => {
               fontWeight: '600',
               borderBottom: window.location.pathname === '/bookings' ? '2px solid #e50914' : 'none',
               paddingBottom: '4px',
-              transition: 'color 0.2s'
-            }}>
+              transition: 'color 200ms ease'
+            }}
+            onMouseMove={(e) => applyTilt(e as any, 6, 6)}
+            onMouseLeave={resetTilt as any}
+            >
               My Bookings
             </a>
           )}
@@ -436,7 +489,8 @@ const Navbar: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <form onSubmit={handleSearch} style={{
             position: 'relative',
-            width: '300px'
+            width: searchFocused ? '360px' : '300px',
+            transition: 'width 200ms ease'
           }}>
             <input
               type="text"
@@ -450,8 +504,12 @@ const Navbar: React.FC = () => {
                 border: '1px solid #e0e0e0',
                 fontSize: '14px',
                 background: '#f5f5f5',
-                outline: 'none'
+                outline: 'none',
+                boxShadow: searchFocused ? '0 4px 14px rgba(0,0,0,0.08)' : 'none',
+                transition: 'box-shadow 200ms ease'
               }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
             />
             <button
               type="submit"
@@ -471,21 +529,57 @@ const Navbar: React.FC = () => {
             </button>
           </form>
 
-          {isLoggedIn && (
+          {isLoggedIn ? (
             <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #e50914, #b20710)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(229,9,20,0.3)'
-            }} onClick={handleLogout}>
-              U
+              gap: '10px'
+            }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #e50914, #b20710)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(229,9,20,0.3)'
+              }} onClick={handleLogout}>
+                U
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <a href="/login" style={{
+                color: '#666',
+                textDecoration: 'none',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                border: '1px solid #e0e0e0',
+                fontSize: '14px',
+                fontWeight: 600,
+                transition: 'transform 150ms ease'
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)'; }}
+              >Login</a>
+              <a href="/register" style={{
+                background: 'linear-gradient(135deg, #e50914, #b20710)',
+                color: 'white',
+                textDecoration: 'none',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '14px',
+                fontWeight: 600,
+                boxShadow: '0 2px 8px rgba(229,9,20,0.3)',
+                transition: 'transform 150ms ease, box-shadow 150ms ease'
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 6px 16px rgba(229,9,20,0.4)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(229,9,20,0.3)'; }}
+              >Sign Up</a>
             </div>
           )}
         </div>

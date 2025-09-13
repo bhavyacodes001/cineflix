@@ -36,6 +36,9 @@ const Showtimes: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const movieId = searchParams.get('movie') || '';
+  const dummyTitle = searchParams.get('title') || '';
+  const dummyPoster = searchParams.get('poster') || '';
+  // rating not used in this view currently
   const [movie, setMovie] = useState<Movie | null>(null);
   const [groups, setGroups] = useState<GroupedByTheater[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -71,14 +74,71 @@ const Showtimes: React.FC = () => {
         setLoading(false);
         return;
       }
+      const isDummy = movieId.startsWith('tmdb:');
       try {
         setLoading(true);
         setError('');
-        const { data } = await api.get(`/showtimes/movie/${movieId}`, {
-          params: { date, city }
-        });
-        setMovie(data.movie);
-        setGroups((data.theaters || []) as GroupedByTheater[]);
+        if (!isDummy) {
+          const { data } = await api.get(`/showtimes/movie/${movieId}`, {
+            params: { date, city }
+          });
+          setMovie(data.movie);
+          const apiGroups = (data.theaters || []) as GroupedByTheater[];
+          if (apiGroups.length > 0) {
+            setGroups(apiGroups);
+          } else {
+            // Fallback: generate dummy groups so every local movie has slots
+            const basePrice = 200;
+            const theaters: GroupedByTheater[] = [
+              { theater: { _id: 't1', name: 'CinePlex Downtown' } as any, showtimes: [] },
+              { theater: { _id: 't2', name: 'Grand Cinema Mall' } as any, showtimes: [] }
+            ];
+            const times = ['10:00', '13:30', '17:00', '20:30'];
+            theaters.forEach((g, i) => {
+              g.showtimes = times.map((t, idx) => ({
+                _id: `dummy-local-${movieId}-${i * 10 + idx}`,
+                date,
+                time: t,
+                endTime: '00:00',
+                price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 },
+                theater: g.theater,
+                hall: { name: 'Screen 1' },
+                movie: {
+                  _id: movieId,
+                  title: data.movie?.title,
+                  poster: (data.movie?.poster || '') as string,
+                  duration: data.movie?.duration,
+                  rating: data.movie?.rating
+                }
+              }) as any);
+            });
+            setGroups(theaters);
+          }
+        } else {
+          // Generate mock theaters/showtimes for dummy TMDB movie
+          const basePrice = 200;
+          const theaters: GroupedByTheater[] = [
+            { theater: { _id: 't1', name: 'CinePlex Downtown' }, showtimes: [] },
+            { theater: { _id: 't2', name: 'Grand Cinema Mall' }, showtimes: [] }
+          ];
+          const times = ['10:00', '13:30', '17:00', '20:30'];
+          const mkShowtime = (theater: Theater, t: string, idx: number): Showtime => ({
+            _id: `dummy-${idx}-${t}`,
+            date,
+            time: t,
+            endTime: '00:00',
+            price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 },
+            theater,
+            // @ts-ignore minimal hall info for UI
+            hall: { name: 'Screen 1' },
+            movie: { title: dummyTitle || 'Movie', poster: dummyPoster, duration: 120, rating: 'PG-13' }
+          });
+          theaters.forEach((g, i) => {
+            g.showtimes = times.map((t, idx) => mkShowtime(g.theater as any, t, i * 10 + idx));
+          });
+          setMovie({ _id: 'dummy', title: dummyTitle || 'Movie', poster: dummyPoster, duration: 120, rating: 'PG', genre: [] } as any);
+          setGroups(theaters);
+        }
       } catch (e: any) {
         setError(e?.response?.data?.message || 'Failed to load showtimes');
       } finally {
@@ -87,7 +147,7 @@ const Showtimes: React.FC = () => {
     };
 
     fetchShowtimes();
-  }, [movieId, date, city]);
+  }, [movieId, date, city, dummyPoster, dummyTitle]);
 
   // Build a 7-day window starting from selected date
   const buildWeekFrom = (startISO: string) => {
@@ -107,18 +167,32 @@ const Showtimes: React.FC = () => {
       if (viewMode !== 'calendar' || !movieId) return;
       try {
         setCalendarLoading(true);
-        const days = buildWeekFrom(date);
-        const requests = days.map((d) => api.get(`/showtimes/movie/${movieId}`, { params: { date: d, city } }));
-        const results = await Promise.allSettled(requests);
-        const dayData: Array<{ date: string; groups: GroupedByTheater[] }> = [];
-        results.forEach((res, idx) => {
-          if (res.status === 'fulfilled') {
-            dayData.push({ date: days[idx], groups: (res.value.data.theaters || []) as GroupedByTheater[] });
-          } else {
-            dayData.push({ date: days[idx], groups: [] });
-          }
-        });
-        setCalendarDays(dayData);
+        const isDummy = movieId.startsWith('tmdb:');
+        if (!isDummy) {
+          const days = buildWeekFrom(date);
+          const requests = days.map((d) => api.get(`/showtimes/movie/${movieId}`, { params: { date: d, city } }));
+          const results = await Promise.allSettled(requests);
+          const dayData: Array<{ date: string; groups: GroupedByTheater[] }> = [];
+          results.forEach((res, idx) => {
+            if (res.status === 'fulfilled') {
+              dayData.push({ date: days[idx], groups: (res.value.data.theaters || []) as GroupedByTheater[] });
+            } else {
+              dayData.push({ date: days[idx], groups: [] });
+            }
+          });
+          setCalendarDays(dayData);
+        } else {
+          const days = buildWeekFrom(date);
+          const basePrice = 200;
+          const times = ['10:00', '13:30', '17:00', '20:30'];
+          const dummy: Array<{ date: string; groups: GroupedByTheater[] }> = days.map((d) => ({
+            date: d,
+            groups: [
+              { theater: { _id: 't1', name: 'CinePlex Downtown' }, showtimes: times.map((t, i) => ({ _id: `dummy-${d}-${i}`, date: d, time: t, endTime: '00:00', price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 }, theater: { _id: 't1', name: 'CinePlex Downtown' } as any, hall: { name: 'Screen 1' } as any }) as any) },
+            ]
+          }));
+          setCalendarDays(dummy);
+        }
       } finally {
         setCalendarLoading(false);
       }
