@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
+import './styles/animations.css';
 
 // Components
 import Navbar from './components/Layout/Navbar';
@@ -11,6 +12,10 @@ import Movies from './pages/Movies';
 import MovieDetails from './pages/MovieDetails';
 import Showtimes from './pages/Showtimes';
 import SeatSelection from './pages/SeatSelection';
+import Payment from './pages/Payment';
+import BookingSuccess from './pages/BookingSuccess';
+import MyBookings from './pages/MyBookings';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -25,6 +30,10 @@ function App() {
           <Route path="/movies/:id" element={<MovieDetails />} />
           <Route path="/showtimes" element={<Showtimes />} />
           <Route path="/showtimes/:id" element={<SeatSelection />} />
+          <Route path="/payment" element={<Payment />} />
+          <Route path="/booking-success" element={<BookingSuccess />} />
+          <Route path="/bookings" element={<MyBookings />} />
+          <Route path="/profile" element={<Profile />} />
         </Routes>
       </div>
     </Router>

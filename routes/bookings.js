@@ -8,14 +8,34 @@ const { auth, adminAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+// In-memory store for dummy bookings (in production, this would be in database)
+const dummyBookings = new Map();
+
 // @route   POST /api/bookings
 // @desc    Create a new booking
 // @access  Private
 router.post('/', auth, [
-  body('showtimeId').isMongoId().withMessage('Valid showtime ID is required'),
+  body('showtimeId').custom((value) => {
+    // Allow MongoDB ObjectId format or dummy IDs for testing
+    if (value.startsWith('dummy-') || /^[a-f0-9]{24}$/i.test(value)) {
+      return true;
+    }
+    throw new Error('Valid showtime ID is required');
+  }),
   body('seats').isArray({ min: 1 }).withMessage('At least one seat must be selected'),
-  body('seats.*.row').trim().isLength({ min: 1 }).withMessage('Seat row is required'),
-  body('seats.*.number').isInt({ min: 1 }).withMessage('Valid seat number is required'),
+  body('seats.*.row').custom((value) => {
+    if (!value || typeof value !== 'string' || value.trim().length === 0) {
+      throw new Error('Seat row is required');
+    }
+    return true;
+  }),
+  body('seats.*.number').custom((value) => {
+    const num = parseInt(value);
+    if (isNaN(num) || num < 1) {
+      throw new Error('Valid seat number is required');
+    }
+    return true;
+  }),
   body('seats.*.type').isIn(['regular', 'premium', 'vip', 'wheelchair']).withMessage('Invalid seat type'),
   body('paymentMethod').isIn(['card', 'wallet', 'upi', 'netbanking']).withMessage('Invalid payment method')
 ], async (req, res) => {
@@ -28,17 +48,48 @@ router.post('/', auth, [
       });
     }
 
-    const { showtimeId, seats, paymentMethod, specialRequests } = req.body;
+            const { showtimeId, seats, paymentMethod, specialRequests, movieData } = req.body;
 
-    // Get showtime with populated data
-    const showtime = await Showtime.findById(showtimeId)
-      .populate('movie', 'title poster duration')
-      .populate('theater', 'name address.city address.state');
+    let showtime;
     
-    if (!showtime) {
-      return res.status(404).json({ 
-        message: 'Showtime not found' 
-      });
+            // Handle dummy showtime IDs for testing
+            if (showtimeId.startsWith('dummy-')) {
+              const showDate = new Date();
+              const showTime = '14:30';
+              const endTime = '16:45';
+              
+              showtime = {
+                _id: showtimeId,
+                movie: { 
+                  _id: 'dummy-movie', 
+                  title: movieData?.title || 'Selected Movie', 
+                  poster: movieData?.poster || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop', 
+                  duration: movieData?.duration || 135,
+                  rating: movieData?.rating || 'PG-13'
+                },
+                theater: { _id: 'dummy-theater', name: 'CinePlex Downtown', address: { city: 'Mumbai', state: 'Maharashtra' } },
+                date: showDate,
+                time: showTime,
+                endTime: endTime,
+                price: { regular: 200, premium: 280, vip: 350 },
+                availableSeats: { regular: 100, premium: 50, vip: 20, wheelchair: 5 },
+                bookedSeats: [],
+                isActive: true,
+                status: 'scheduled',
+                isPast: () => false,
+                isSeatAvailable: () => true
+              };
+    } else {
+      // Get showtime with populated data
+      showtime = await Showtime.findById(showtimeId)
+        .populate('movie', 'title poster duration')
+        .populate('theater', 'name address.city address.state');
+      
+      if (!showtime) {
+        return res.status(404).json({ 
+          message: 'Showtime not found' 
+        });
+      }
     }
 
     if (!showtime.isActive || showtime.status !== 'scheduled') {
@@ -67,15 +118,15 @@ router.post('/', auth, [
       }
 
       // Get seat price
-      const seatPrice = showtime.price[seat.type];
+      const seatPrice = showtime.price[seat.type] || showtime.price.regular;
       if (!seatPrice) {
         return res.status(400).json({ 
           message: `Invalid seat type: ${seat.type}` 
         });
       }
 
-      // Check if seat type is available
-      if (showtime.availableSeats[seat.type] <= 0) {
+      // Check if seat type is available (skip check for wheelchair as it's not in price structure)
+      if (seat.type !== 'wheelchair' && showtime.availableSeats[seat.type] <= 0) {
         return res.status(400).json({ 
           message: `No ${seat.type} seats available` 
         });
@@ -87,45 +138,92 @@ router.post('/', auth, [
           number: seat.number,
           type: seat.type,
           price: seatPrice
-        }
+        },
+        ticketId: `TKT${Date.now()}${Math.random().toString(36).substr(2, 8).toUpperCase()}`
       });
 
       totalAmount += seatPrice;
     }
 
-    // Create booking
-    const bookingData = {
-      user: req.user.userId,
-      showtime: showtimeId,
-      movie: showtime.movie._id,
-      theater: showtime.theater._id,
-      tickets: validatedSeats,
-      totalAmount,
-      payment: {
-        method: paymentMethod,
-        transactionId: `TXN${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
-        status: 'pending'
-      },
-      showDate: showtime.date,
-      showTime: showtime.time,
-      specialRequests
-    };
+    // Handle dummy bookings differently
+    if (showtimeId.startsWith('dummy-')) {
+      // For dummy bookings, create a mock booking response without saving to database
+              const mockBooking = {
+                _id: `booking_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                user: req.user.userId,
+                showtime: showtimeId,
+                movie: {
+                  _id: 'dummy-movie',
+                  title: showtime.movie.title,
+                  poster: showtime.movie.poster,
+                  duration: showtime.movie.duration,
+                  rating: showtime.movie.rating
+                },
+                theater: {
+                  _id: 'dummy-theater',
+                  name: showtime.theater.name,
+                  address: showtime.theater.address
+                },
+        tickets: validatedSeats,
+        bookingNumber: `BK${Date.now()}${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        totalAmount,
+        payment: {
+          method: paymentMethod,
+          transactionId: `TXN${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
+          status: 'pending'
+        },
+        showDate: showtime.date,
+        showTime: showtime.time,
+        endTime: showtime.endTime,
+        status: 'pending',
+        bookingDate: new Date(),
+        specialRequests
+      };
 
-    const booking = new Booking(bookingData);
-    await booking.save();
+      // Store the booking in our in-memory store for later retrieval
+      dummyBookings.set(mockBooking._id, mockBooking);
 
-    // Populate booking data
-    await booking.populate([
-      { path: 'movie', select: 'title poster duration' },
-      { path: 'theater', select: 'name address.city address.state' },
-      { path: 'showtime', select: 'date time endTime' }
-    ]);
+      res.status(201).json({
+        message: 'Booking created successfully. Please complete payment to confirm.',
+        booking: mockBooking,
+        paymentRequired: true
+      });
+    } else {
+      // Create booking for real showtimes
+      const bookingData = {
+        user: req.user.userId,
+        showtime: showtimeId,
+        movie: showtime.movie._id,
+        theater: showtime.theater._id,
+        tickets: validatedSeats,
+        bookingNumber: `BK${Date.now()}${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+        totalAmount,
+        payment: {
+          method: paymentMethod,
+          transactionId: `TXN${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
+          status: 'pending'
+        },
+        showDate: showtime.date,
+        showTime: showtime.time,
+        specialRequests
+      };
 
-    res.status(201).json({
-      message: 'Booking created successfully. Please complete payment to confirm.',
-      booking,
-      paymentRequired: true
-    });
+      const booking = new Booking(bookingData);
+      await booking.save();
+
+      // Populate booking data
+      await booking.populate([
+        { path: 'movie', select: 'title poster duration' },
+        { path: 'theater', select: 'name address.city address.state' },
+        { path: 'showtime', select: 'date time endTime' }
+      ]);
+
+      res.status(201).json({
+        message: 'Booking created successfully. Please complete payment to confirm.',
+        booking,
+        paymentRequired: true
+      });
+    }
   } catch (error) {
     console.error('Create booking error:', error);
     res.status(500).json({ 
@@ -194,20 +292,37 @@ router.get('/', auth, [
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id)
-      .populate('movie', 'title poster duration rating genre')
-      .populate('theater', 'name address contact')
-      .populate('showtime', 'date time endTime hall')
-      .populate('user', 'firstName lastName email phone');
+    let booking;
+    
+            // Handle dummy booking IDs
+            if (req.params.id.startsWith('booking_')) {
+              // For dummy bookings, retrieve from our in-memory store
+              booking = dummyBookings.get(req.params.id);
+              
+              if (!booking) {
+                return res.status(404).json({ 
+                  message: 'Booking not found' 
+                });
+              }
+    } else {
+      // Handle real bookings
+      booking = await Booking.findById(req.params.id)
+        .populate('movie', 'title poster duration rating genre')
+        .populate('theater', 'name address contact')
+        .populate('showtime', 'date time endTime hall')
+        .populate('user', 'firstName lastName email phone');
 
-    if (!booking) {
-      return res.status(404).json({ 
-        message: 'Booking not found' 
-      });
+      if (!booking) {
+        return res.status(404).json({ 
+          message: 'Booking not found' 
+        });
+      }
     }
 
     // Check if user owns the booking or is admin
-    if (booking.user._id.toString() !== req.user.userId && req.user.role !== 'admin') {
+    const userId = booking.user._id ? booking.user._id.toString() : booking.user.toString();
+    const currentUserId = req.user.userId.toString();
+    if (userId !== currentUserId && req.user.role !== 'admin') {
       return res.status(403).json({ 
         message: 'Access denied' 
       });

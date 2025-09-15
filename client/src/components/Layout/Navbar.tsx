@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../../styles/animations.css';
 
 const Navbar: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -8,9 +9,11 @@ const Navbar: React.FC = () => {
   const [isDetecting, setIsDetecting] = useState(true);
   const [navElevated, setNavElevated] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const navigate = useNavigate();
   const isLoggedIn = localStorage.getItem('token');
   const locationDropdownRef = useRef<HTMLDivElement>(null);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   const cities = useMemo(() => [
     { name: 'Mumbai', state: 'Maharashtra' },
@@ -124,11 +127,14 @@ const Navbar: React.FC = () => {
     detectLocation();
   }, [cities]);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
         setShowLocationDropdown(false);
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setShowProfileDropdown(false);
       }
     };
 
@@ -166,23 +172,6 @@ const Navbar: React.FC = () => {
     window.location.href = '/';
   };
 
-  // 3D tilt helpers
-  const applyTilt = (e: React.MouseEvent<HTMLElement>, maxTilt = 8, pop = 6) => {
-    const el = e.currentTarget as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-    const rotateY = (px - 0.5) * (maxTilt * 2);
-    const rotateX = (0.5 - py) * (maxTilt * 2);
-    el.style.transform = `perspective(700px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(${pop}px)`;
-    el.style.boxShadow = '0 10px 22px rgba(0,0,0,0.15)';
-  };
-
-  const resetTilt = (e: React.MouseEvent<HTMLElement>) => {
-    const el = e.currentTarget as HTMLElement;
-    el.style.transform = 'perspective(700px) rotateX(0deg) rotateY(0deg) translateZ(0)';
-    el.style.boxShadow = '';
-  };
 
   return (
     <nav style={{
@@ -204,24 +193,21 @@ const Navbar: React.FC = () => {
         padding: '0 20px'
       }}>
         {/* Logo */}
-        <a href="/" style={{ textDecoration: 'none' }}>
+        <a href="/" className="cineplex-logo" style={{ textDecoration: 'none' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '12px'
           }}>
-            <div style={{
+            <div className="cineplex-logo-icon" style={{
               background: 'linear-gradient(135deg, #e50914, #b20710)',
               width: '40px',
               height: '40px',
               borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(229,9,20,0.3)'
+              justifyContent: 'center'
             }}
-            onMouseMove={(e) => applyTilt(e, 10, 10)}
-            onMouseLeave={resetTilt}
             >
               <span style={{ 
                 color: 'white',
@@ -292,23 +278,14 @@ const Navbar: React.FC = () => {
 
           {/* Dropdown */}
           {showLocationDropdown && (
-            <div style={{
-              position: 'absolute',
+            <div className={`dropdown-enhanced ${showLocationDropdown ? 'show' : ''}`} style={{
               top: '100%',
               left: 0,
               right: 0,
-              background: 'white',
-              border: '1px solid #e0e0e0',
-              borderRadius: '8px',
-              boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
-              zIndex: 1000,
               maxHeight: '300px',
               overflowY: 'auto',
               marginTop: '4px',
-              minWidth: '250px',
-              transform: 'translateY(4px) scale(1)',
-              opacity: 1,
-              transition: 'transform 200ms ease, opacity 200ms ease'
+              minWidth: '250px'
             }}>
               <div style={{ 
                 padding: '12px 16px', 
@@ -322,19 +299,11 @@ const Navbar: React.FC = () => {
               
               {/* Detect Location Button */}
               <div
+                className="dropdown-item-enhanced"
                 style={{
-                  padding: '12px 16px',
-                  cursor: 'pointer',
-                  borderBottom: '1px solid #f0f0f0',
-                  transition: 'background-color 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
                   color: '#e50914',
                   fontWeight: '500'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 onClick={async () => {
                   setIsDetecting(true);
                   setSelectedCity('Detecting...');
@@ -402,17 +371,12 @@ const Navbar: React.FC = () => {
               {cities.map((city) => (
                 <div
                   key={city.name}
+                  className="dropdown-item-enhanced"
                   style={{
-                    padding: '12px 16px',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #f8f8f8',
-                    transition: 'background-color 0.2s',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   onClick={() => {
                     setSelectedCity(city.name);
                     setShowLocationDropdown(false);
@@ -437,52 +401,27 @@ const Navbar: React.FC = () => {
         </div>
 
         {/* Navigation Links */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
-          <a href="/" style={{
-            color: window.location.pathname === '/' ? '#e50914' : '#666',
-            textDecoration: 'none',
-            fontSize: '16px',
-            fontWeight: '600',
-            borderBottom: window.location.pathname === '/' ? '2px solid #e50914' : 'none',
-            paddingBottom: '4px',
-            transition: 'color 200ms ease'
-          }}
-          onMouseMove={(e) => applyTilt(e as any, 6, 6)}
-          onMouseLeave={resetTilt as any}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <a 
+            href="/" 
+            className={`nav-link-enhanced ${window.location.pathname === '/' ? 'active' : ''}`}
           >
             Home
           </a>
-          <a href="/movies" style={{
-            color: window.location.pathname === '/movies' ? '#e50914' : '#666',
-            textDecoration: 'none',
-            fontSize: '16px',
-            fontWeight: '600',
-            borderBottom: window.location.pathname === '/movies' ? '2px solid #e50914' : 'none',
-            paddingBottom: '4px',
-            transition: 'color 200ms ease'
-          }}
-          onMouseMove={(e) => applyTilt(e as any, 6, 6)}
-          onMouseLeave={resetTilt as any}
+          <a 
+            href="/movies" 
+            className={`nav-link-enhanced ${window.location.pathname === '/movies' ? 'active' : ''}`}
           >
             Movies
           </a>
           {isLoggedIn && (
-            <a href="/bookings" style={{
-              color: window.location.pathname === '/bookings' ? '#e50914' : '#666',
-              textDecoration: 'none',
-              fontSize: '16px',
-              fontWeight: '600',
-              borderBottom: window.location.pathname === '/bookings' ? '2px solid #e50914' : 'none',
-              paddingBottom: '4px',
-              transition: 'color 200ms ease'
-            }}
-            onMouseMove={(e) => applyTilt(e as any, 6, 6)}
-            onMouseLeave={resetTilt as any}
+            <a 
+              href="/bookings" 
+              className={`nav-link-enhanced ${window.location.pathname === '/bookings' ? 'active' : ''}`}
             >
               My Bookings
             </a>
           )}
-          
         </div>
 
         {/* Search and Profile */}
@@ -494,20 +433,10 @@ const Navbar: React.FC = () => {
           }}>
             <input
               type="text"
+              className="search-input-enhanced"
               placeholder="Search for movies, theaters and showtimes"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 40px 10px 16px',
-                borderRadius: '20px',
-                border: '1px solid #e0e0e0',
-                fontSize: '14px',
-                background: '#f5f5f5',
-                outline: 'none',
-                boxShadow: searchFocused ? '0 4px 14px rgba(0,0,0,0.08)' : 'none',
-                transition: 'box-shadow 200ms ease'
-              }}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
             />
@@ -530,56 +459,122 @@ const Navbar: React.FC = () => {
           </form>
 
           {isLoggedIn ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
+            <div ref={profileDropdownRef} style={{ position: 'relative' }}>
               <div style={{
-                width: '36px',
-                height: '36px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #e50914, #b20710)',
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
                 fontWeight: 'bold',
+                fontSize: '16px',
                 cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(229,9,20,0.3)'
-              }} onClick={handleLogout}>
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+                transition: 'all 0.3s ease',
+                border: '2px solid rgba(255, 255, 255, 0.2)'
+              }} 
+              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+              }}
+              >
                 U
               </div>
+
+              {/* Profile Dropdown */}
+              {showProfileDropdown && (
+                <div className={`dropdown-enhanced ${showProfileDropdown ? 'show' : ''}`} style={{
+                  top: '100%',
+                  right: 0,
+                  marginTop: '8px',
+                  minWidth: '200px'
+                }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
+                    <div style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
+                      Welcome back!
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      Manage your account
+                    </div>
+                  </div>
+                  
+                  <div style={{ padding: '8px 0' }}>
+                    <a 
+                      href="/bookings" 
+                      className="dropdown-item-enhanced"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#333',
+                        textDecoration: 'none',
+                        fontSize: '14px'
+                      }}
+                      onClick={() => setShowProfileDropdown(false)}
+                    >
+                      <span>🎫</span>
+                      <span>My Bookings</span>
+                    </a>
+                    
+                    <a 
+                      href="/profile" 
+                      className="dropdown-item-enhanced"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#333',
+                        textDecoration: 'none',
+                        fontSize: '14px'
+                      }}
+                      onClick={() => setShowProfileDropdown(false)}
+                    >
+                      <span>👤</span>
+                      <span>Profile Settings</span>
+                    </a>
+                    
+                    <div style={{ 
+                      height: '1px', 
+                      backgroundColor: '#f0f0f0', 
+                      margin: '8px 0' 
+                    }} />
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="dropdown-item-enhanced"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        color: '#e50914',
+                        textDecoration: 'none',
+                        fontSize: '14px',
+                        background: 'none',
+                        border: 'none',
+                        width: '100%',
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span>🚪</span>
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <a href="/login" style={{
-                color: '#666',
-                textDecoration: 'none',
-                padding: '8px 14px',
-                borderRadius: '20px',
-                border: '1px solid #e0e0e0',
-                fontSize: '14px',
-                fontWeight: 600,
-                transition: 'transform 150ms ease'
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-1px)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)'; }}
-              >Login</a>
-              <a href="/register" style={{
-                background: 'linear-gradient(135deg, #e50914, #b20710)',
-                color: 'white',
-                textDecoration: 'none',
-                padding: '8px 16px',
-                borderRadius: '20px',
-                fontSize: '14px',
-                fontWeight: 600,
-                boxShadow: '0 2px 8px rgba(229,9,20,0.3)',
-                transition: 'transform 150ms ease, box-shadow 150ms ease'
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 6px 16px rgba(229,9,20,0.4)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLAnchorElement).style.boxShadow = '0 2px 8px rgba(229,9,20,0.3)'; }}
-              >Sign Up</a>
+              <a href="/login" className="btn-enhanced btn-secondary-enhanced">Login</a>
+              <a href="/register" className="btn-enhanced btn-primary-enhanced">Sign Up</a>
             </div>
           )}
         </div>

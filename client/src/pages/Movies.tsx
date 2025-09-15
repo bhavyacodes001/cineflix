@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../utils/api';
+import '../styles/animations.css';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 type Movie = {
   id: string | number;
@@ -253,16 +255,13 @@ const Movies: React.FC = () => {
       {/* Loading State */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎬</div>
-          <p style={{ color: '#666', fontSize: '18px' }}>
-            Loading {searchQuery ? 'search results' : 'popular movies'}...
-          </p>
+          <LoadingSpinner size="large" text={`Loading ${searchQuery ? 'search results' : 'popular movies'}...`} />
           {loadingProgress && (
-            <p style={{ color: '#e50914', fontSize: '16px', fontWeight: 'bold', marginTop: '10px' }}>
+            <p style={{ color: '#e50914', fontSize: '16px', fontWeight: 'bold', marginTop: '20px' }}>
               {loadingProgress}
             </p>
           )}
-          <p style={{ color: '#999', fontSize: '14px', marginTop: '10px' }}>
+          <p style={{ color: '#999', fontSize: '14px', marginTop: '20px' }}>
             {searchQuery ? 'Fetching up to 40 movies' : 'Fetching up to 60 popular movies'}
           </p>
         </div>
@@ -327,35 +326,26 @@ const Movies: React.FC = () => {
       {!loading && !error && movies.length > 0 && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-          gap: '16px',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: '24px',
           marginBottom: '20px'
         }}>
-          {movies.map((movie) => (
+          {movies.map((movie, index) => (
             <div 
               key={movie.id} 
+              className={`animate-fade-in-scale animate-delay-${(index % 5) + 1}`}
               style={{ textDecoration: 'none' }}
             >
               <div 
+                className="movie-card-enhanced"
                 onClick={() => setSelectedMovie(movie)}
                 style={{
-                  background: 'white',
+                  background: '#ffffff',
                   borderRadius: '12px',
                   overflow: 'hidden',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  transition: 'transform 0.3s ease',
-                  cursor: 'pointer',
-                  position: 'relative'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-8px)';
-                  const overlayBtns = e.currentTarget.querySelectorAll('.overlay-btn');
-                  overlayBtns.forEach((btn) => ((btn as HTMLElement).style.opacity = '1'));
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  const overlayBtns = e.currentTarget.querySelectorAll('.overlay-btn');
-                  overlayBtns.forEach((btn) => ((btn as HTMLElement).style.opacity = '0'));
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
                 }}
               >
                 <div style={{ position: 'relative' }}>
@@ -364,112 +354,133 @@ const Movies: React.FC = () => {
                     alt={movie.title}
                     style={{ 
                       width: '100%', 
-                      height: '300px', 
-                      objectFit: 'cover'
+                      height: '320px', 
+                      objectFit: 'cover',
+                      borderRadius: '12px 12px 0 0'
                     }}
                     onError={(e) => {
                       e.currentTarget.src = 'https://via.placeholder.com/500x750/333/fff?text=No+Image';
                     }}
                   />
-                  {/* Overlay Buttons */}
-                  <button
-                    className="overlay-btn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const searchQuery = encodeURIComponent(`${movie.title} official trailer`);
-                      const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
-                      window.open(youtubeUrl, '_blank');
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      background: 'rgba(229,9,20,0.9)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      opacity: '0',
-                      transition: 'all 0.3s ease',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-                    }}
-                    title="Watch trailer on YouTube"
+                  {/* Overlay Buttons Container */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.4)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '12px',
+                    opacity: '0',
+                    transition: 'all 0.3s ease',
+                    backdropFilter: 'blur(5px)'
+                  }}
+                  className="overlay-container"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = '1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = '0';
+                  }}
                   >
-                    ▶️ Trailer
-                  </button>
-                  <button
-                    className="overlay-btn"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const isLocal = typeof movie.id === 'string';
-                      if (isLocal) {
-                        navigate(`/showtimes?movie=${movie.id}`);
-                      } else {
-                        const posterUrl = movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '');
-                        const qs = new URLSearchParams({
-                          movie: `tmdb:${String(movie.id)}`,
-                          title: movie.title,
-                          poster: posterUrl,
-                          rating: String(movie.vote_average || 0)
-                        }).toString();
-                        navigate(`/showtimes?${qs}`);
-                      }
-                    }}
-                    style={{
-                      position: 'absolute',
-                      top: '65%',
-                      left: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      background: 'rgba(0,0,0,0.75)',
-                      color: 'white',
-                      border: '1px solid rgba(255,255,255,0.3)',
-                      padding: '10px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      opacity: '0',
-                      transition: 'all 0.3s ease',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-                    }}
-                    title="Book tickets for this movie"
-                  >
-                    🎫 Book Tickets
-                  </button>
+                    <button
+                      className="btn-enhanced"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const searchQuery = encodeURIComponent(`${movie.title} official trailer`);
+                        const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
+                        window.open(youtubeUrl, '_blank');
+                      }}
+                      style={{
+                        background: 'rgba(229,9,20,0.9)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '12px 20px',
+                        borderRadius: '25px',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                        minWidth: '140px'
+                      }}
+                      title="Watch trailer on YouTube"
+                    >
+                      ▶️ Trailer
+                    </button>
+                    <button
+                      className="btn-enhanced"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const isLocal = typeof movie.id === 'string';
+                        if (isLocal) {
+                          navigate(`/showtimes?movie=${movie.id}`);
+                        } else {
+                          const posterUrl = movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '');
+                          const qs = new URLSearchParams({
+                            movie: `tmdb:${String(movie.id)}`,
+                            title: movie.title,
+                            poster: posterUrl,
+                            rating: String(movie.vote_average || 0)
+                          }).toString();
+                          navigate(`/showtimes?${qs}`);
+                        }
+                      }}
+                      style={{
+                        background: 'rgba(0,0,0,0.8)',
+                        color: 'white',
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        padding: '12px 20px',
+                        borderRadius: '25px',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                        minWidth: '140px'
+                      }}
+                      title="Book tickets for this movie"
+                    >
+                      🎫 Book Tickets
+                    </button>
+                  </div>
                 </div>
-                <div style={{ padding: '15px' }}>
-                  <h3 style={{ 
-                    margin: '0 0 8px 0', 
+                <div className="movie-info" style={{ 
+                  padding: '18px',
+                  borderRadius: '0 0 12px 12px',
+                  marginTop: '-4px'
+                }}>
+                  <h3 className="movie-title" style={{ 
+                    margin: '0 0 10px 0', 
                     fontSize: '16px', 
                     fontWeight: 'bold',
-                    color: '#000',
                     lineHeight: '1.3',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
+                    WebkitBoxOrient: 'vertical',
+                    minHeight: '42px'
                   }}>
                     {movie.title}
                   </h3>
-                  <p style={{ 
-                    color: '#666', 
+                  <p className="movie-meta" style={{ 
                     fontSize: '13px',
                     lineHeight: '1.4',
-                    margin: '0 0 10px 0',
+                    margin: '0 0 12px 0',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical',
+                    minHeight: '55px',
+                    color: '#555'
                   }}>
                     {movie.overview}
                   </p>
@@ -477,23 +488,33 @@ const Movies: React.FC = () => {
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center',
-                    marginBottom: '10px'
+                    marginBottom: '15px'
                   }}>
                     <span style={{ 
-                      color: '#ffa500', 
-                      fontSize: '14px',
+                      background: 'linear-gradient(135deg, #ffa500, #ff8c00)',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
                       fontWeight: 'bold'
                     }}>
                       ⭐ {movie.vote_average.toFixed(1)}
                     </span>
                     <span style={{ 
                       color: '#666', 
-                      fontSize: '12px'
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      background: '#f0f0f0',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      backdropFilter: 'none',
+                      border: 'none'
                     }}>
                       {new Date(movie.release_date).getFullYear()}
                     </span>
                   </div>
                   <button
+                    className="btn-enhanced btn-primary-enhanced"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -512,17 +533,9 @@ const Movies: React.FC = () => {
                       }
                     }}
                     style={{
-                      background: 'linear-gradient(135deg, #e50914, #b20710)',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                      boxShadow: '0 2px 8px rgba(229,9,20,0.3)',
-                      border: 'none',
-                      width: '100%',
-                      cursor: 'pointer'
+                      fontSize: '13px',
+                      padding: '10px 16px',
+                      width: '100%'
                     }}
                   >
                     Book Tickets
@@ -558,147 +571,260 @@ const Movies: React.FC = () => {
         </div>
       )}
 
-      {/* Movie Details Modal */}
+      {/* Enhanced Movie Details Modal */}
       {selectedMovie && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.9)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          backdropFilter: 'blur(10px)',
-          padding: '20px'
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
-            borderRadius: '20px',
-            maxWidth: '800px',
-            width: '100%',
-            maxHeight: '90vh',
-            overflow: 'auto',
-            position: 'relative',
-            border: '1px solid rgba(255,255,255,0.1)'
-          }}>
-            {/* Close Button */}
+        <div className="modal-enhanced"
+        onClick={() => setSelectedMovie(null)}
+        >
+          <div className="modal-content-enhanced"
+          onClick={(e) => e.stopPropagation()}
+          >
+            {/* Enhanced Close Button */}
             <button
               onClick={() => setSelectedMovie(null)}
-              style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
+              className="btn-enhanced"
+              style={{ 
+                position: 'absolute', 
+                top: 20, 
+                right: 20, 
                 background: 'rgba(255,255,255,0.1)',
-                color: 'white',
-                border: 'none',
-                padding: '8px 12px',
-                borderRadius: '50%',
-                fontSize: '18px',
+                color: 'white', 
+                border: 'none', 
+                padding: '12px 16px', 
+                borderRadius: '50%', 
                 cursor: 'pointer',
-                zIndex: 1001
+                fontSize: '18px',
+                fontWeight: 'bold',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                zIndex: 10
               }}
             >
               ✕
             </button>
 
-            {/* Modal Content */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 2fr',
-              gap: '30px',
-              padding: '30px'
+            {/* Enhanced Movie Content */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1.5fr', 
+              gap: '32px', 
+              padding: '32px',
+              alignItems: 'start'
             }}>
-              {/* Movie Poster */}
-              <div>
-                <img 
-                  src={selectedMovie.poster_path 
-                    ? `https://image.tmdb.org/t/p/w500${selectedMovie.poster_path}` 
-                    : 'https://via.placeholder.com/500x750/333/fff?text=No+Image'}
-                  alt={selectedMovie.title}
-                  style={{ 
-                    width: '100%', 
-                    height: '400px', 
-                    objectFit: 'cover',
-                    borderRadius: '15px',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
-                  }}
-                />
+              {/* Enhanced Movie Poster */}
+              <div style={{ position: 'relative' }}>
+                <div style={{
+                  position: 'relative',
+                  borderRadius: '20px',
+                  overflow: 'hidden',
+                  boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                  transition: 'transform 0.3s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+                >
+                  <img 
+                    src={selectedMovie.poster_url || (selectedMovie.poster_path ? `https://image.tmdb.org/t/p/w500${selectedMovie.poster_path}` : 'https://via.placeholder.com/500x750/333/fff?text=No+Image')}
+                    alt={selectedMovie.title} 
+                    style={{ 
+                      width: '100%', 
+                      height: '450px', 
+                      objectFit: 'cover',
+                      display: 'block'
+                    }} 
+                  />
+                </div>
+                
+                {/* Movie Rating Badge */}
+                <div style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'linear-gradient(135deg, #ffa500, #ff8c00)',
+                  color: 'white',
+                  padding: '8px 12px',
+                  borderRadius: '20px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                  backdropFilter: 'blur(10px)'
+                }}>
+                  ⭐ {selectedMovie.vote_average?.toFixed(1)}
+                </div>
               </div>
 
-              {/* Movie Details */}
-              <div style={{ color: 'white' }}>
-                <h2 style={{ 
-                  margin: '0 0 15px 0', 
-                  fontSize: '28px',
+              {/* Enhanced Movie Details */}
+              <div style={{ 
+                color: 'white', 
+                paddingTop: '20px',
+                background: 'rgba(0, 0, 0, 0.7)',
+                borderRadius: '20px',
+                padding: '24px',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}>
+                {/* Movie Title */}
+                <h1 style={{ 
+                  margin: '0 0 16px 0', 
+                  fontSize: '32px',
                   fontWeight: 'bold',
-                  color: '#fff'
+                  color: '#ffffff',
+                  textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                  lineHeight: '1.2'
                 }}>
                   {selectedMovie.title}
-                </h2>
+                </h1>
 
+                {/* Movie Meta Info */}
                 <div style={{ 
                   display: 'flex', 
-                  gap: '10px', 
-                  marginBottom: '20px', 
-                  flexWrap: 'wrap' 
+                  gap: '12px', 
+                  marginBottom: '20px',
+                  flexWrap: 'wrap',
+                  alignItems: 'center'
                 }}>
                   <span style={{ 
-                    background: 'linear-gradient(135deg, #feca57, #ff9ff3)',
-                    padding: '6px 12px', 
-                    borderRadius: '15px',
+                    background: 'linear-gradient(135deg, #e50914, #b20710)', 
+                    color: 'white', 
+                    padding: '8px 16px', 
+                    borderRadius: '20px',
                     fontSize: '12px',
                     fontWeight: 'bold',
-                    color: '#333'
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
                   }}>
-                    ⭐ {selectedMovie.vote_average?.toFixed(1)}
+                    PG-13
                   </span>
+                  
                   <span style={{ 
-                    background: 'linear-gradient(135deg, #5f27cd, #00d2d3)',
-                    padding: '6px 12px', 
-                    borderRadius: '15px',
+                    background: 'rgba(255,255,255,0.1)', 
+                    color: 'white', 
+                    padding: '8px 16px', 
+                    borderRadius: '20px',
                     fontSize: '12px',
-                    fontWeight: 'bold'
+                    fontWeight: '500',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)'
+                  }}>
+                    Movie
+                  </span>
+                  
+                  <span style={{ 
+                    color: 'rgba(255,255,255,0.7)', 
+                    fontSize: '14px',
+                    fontWeight: '500'
                   }}>
                     {new Date(selectedMovie.release_date).getFullYear()}
                   </span>
                 </div>
 
+                {/* Movie Description */}
                 <p style={{ 
-                  fontSize: '16px', 
-                  lineHeight: '1.6', 
-                  marginBottom: '25px',
-                  color: 'rgba(255,255,255,0.9)'
+                  color: '#ffffff', 
+                  lineHeight: 1.7, 
+                  marginBottom: '24px',
+                  fontSize: '16px',
+                  textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                  fontWeight: '400'
                 }}>
                   {selectedMovie.overview || 'No description available.'}
                 </p>
 
+                {/* Movie Details */}
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '16px',
+                  marginBottom: '24px'
+                }}>
+                  <div>
+                    <span style={{ 
+                      color: 'rgba(255,255,255,0.8)', 
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>Release Year</span>
+                    <div style={{ 
+                      color: '#ffffff', 
+                      fontWeight: '500',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>{new Date(selectedMovie.release_date).getFullYear()}</div>
+                  </div>
+                  
+                  <div>
+                    <span style={{ 
+                      color: 'rgba(255,255,255,0.8)', 
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>Rating</span>
+                    <div style={{ 
+                      color: '#ffffff', 
+                      fontWeight: '500',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>{selectedMovie.vote_average?.toFixed(1)}/10</div>
+                  </div>
+                  
+                  <div>
+                    <span style={{ 
+                      color: 'rgba(255,255,255,0.8)', 
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>Release Date</span>
+                    <div style={{ 
+                      color: '#ffffff', 
+                      fontWeight: '500',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>
+                      {new Date(selectedMovie.release_date).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span style={{ 
+                      color: 'rgba(255,255,255,0.8)', 
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>Source</span>
+                    <div style={{ 
+                      color: '#ffffff', 
+                      fontWeight: '500',
+                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)'
+                    }}>TMDB</div>
+                  </div>
+                </div>
+
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                   <button
+                    className="btn-enhanced btn-primary-enhanced"
                     onClick={() => {
-                      const searchQuery = encodeURIComponent(`${selectedMovie.title} official trailer`);
-                      const youtubeUrl = `https://www.youtube.com/results?search_query=${searchQuery}`;
-                      window.open(youtubeUrl, '_blank');
+                      const q = encodeURIComponent(`${selectedMovie.title} official trailer`);
+                      window.open(`https://www.youtube.com/results?search_query=${q}`, '_blank');
                     }}
                     style={{
-                      background: 'linear-gradient(135deg, #e50914, #b20710)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '12px 24px',
-                      borderRadius: '25px',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 15px rgba(229,9,20,0.4)'
+                      fontSize: '16px',
+                      padding: '14px 28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
                     }}
                   >
                     ▶️ Watch Trailer
                   </button>
                   
                   <button
+                    className="btn-enhanced"
                     onClick={() => {
                       const isLocal = typeof selectedMovie.id === 'string';
                       if (isLocal) {
@@ -718,11 +844,15 @@ const Movies: React.FC = () => {
                       background: 'rgba(255,255,255,0.1)',
                       color: 'white',
                       border: '2px solid rgba(255,255,255,0.3)',
-                      padding: '10px 20px',
+                      padding: '12px 24px',
                       borderRadius: '25px',
-                      fontSize: '14px',
+                      fontSize: '16px',
                       fontWeight: 'bold',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      backdropFilter: 'blur(10px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
                     }}
                   >
                     🎫 Book Tickets

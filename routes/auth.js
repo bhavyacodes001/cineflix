@@ -20,7 +20,6 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail().withMessage('Please enter a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('phone').isMobilePhone().withMessage('Please enter a valid phone number'),
-  body('dateOfBirth').isISO8601().withMessage('Please enter a valid date of birth')
 ], async (req, res) => {
   try {
     // Check for validation errors
@@ -32,7 +31,7 @@ router.post('/register', [
       });
     }
 
-    const { firstName, lastName, email, password, phone, dateOfBirth } = req.body;
+    const { firstName, lastName, email, password, phone } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -48,8 +47,7 @@ router.post('/register', [
       lastName,
       email,
       password,
-      phone,
-      dateOfBirth: new Date(dateOfBirth)
+      phone
     });
 
     await user.save();
@@ -157,6 +155,28 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/auth/profile
+// @desc    Get current user profile
+// @access  Private
+router.get('/profile', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+
+    if (!user) {
+      return res.status(404).json({ 
+        message: 'User not found' 
+      });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ 
+      message: 'Server error' 
+    });
+  }
+});
+
 // @route   PUT /api/auth/profile
 // @desc    Update user profile
 // @access  Private
@@ -164,7 +184,6 @@ router.put('/profile', auth, [
   body('firstName').optional().trim().isLength({ min: 1 }).withMessage('First name cannot be empty'),
   body('lastName').optional().trim().isLength({ min: 1 }).withMessage('Last name cannot be empty'),
   body('phone').optional().isMobilePhone().withMessage('Please enter a valid phone number'),
-  body('dateOfBirth').optional().isISO8601().withMessage('Please enter a valid date of birth')
 ], async (req, res) => {
   try {
     // Check for validation errors
@@ -176,13 +195,13 @@ router.put('/profile', auth, [
       });
     }
 
-    const { firstName, lastName, phone, dateOfBirth, preferences } = req.body;
+    const { firstName, lastName, phone, email, preferences } = req.body;
     const updateData = {};
 
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
     if (phone) updateData.phone = phone;
-    if (dateOfBirth) updateData.dateOfBirth = new Date(dateOfBirth);
+    if (email) updateData.email = email;
     if (preferences) updateData.preferences = { ...req.user.preferences, ...preferences };
 
     const user = await User.findByIdAndUpdate(

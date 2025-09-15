@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../utils/api';
 
 type Theater = {
@@ -44,6 +44,7 @@ type SeatPick = { row: string; number: number; type: SeatCell['type']; price: nu
 const SeatSelection: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showtime, setShowtime] = useState<Showtime | null>(null);
@@ -55,6 +56,11 @@ const SeatSelection: React.FC = () => {
       try {
         setLoading(true);
         if (id?.startsWith('dummy-')) {
+          // Get movie data from URL parameters
+          const movieTitle = searchParams.get('title') || 'Selected Movie';
+          const moviePoster = searchParams.get('poster') || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop';
+          const movieRating = searchParams.get('rating') || 'PG-13';
+          
           // Build a mock seat map for dummy showtime ids
           const rows = 'ABCDEFGHIJ'.split('').map((row, rIdx) => {
             const seats = Array.from({ length: 14 }).map((_, sIdx) => {
@@ -67,15 +73,19 @@ const SeatSelection: React.FC = () => {
             return { rowName: row, seats } as SeatRow;
           });
           setSeatMap(rows);
-          // Minimal showtime details for header/summary
+          // Minimal showtime details for header/summary with real movie data
+          const showDate = new Date();
+          const showTime = '14:30';
+          const endTime = '16:45';
+          
           setShowtime({
             _id: id,
-            date: new Date().toISOString().slice(0, 10),
-            time: '10:00',
-            endTime: '12:00',
-            hall: { name: 'Screen 1' },
-            movie: { title: 'Selected Movie', poster: '', duration: 120, rating: 'PG-13' },
-            theater: { name: 'CinePlex Dummy' },
+            date: showDate.toISOString().slice(0, 10),
+            time: showTime,
+            endTime: endTime,
+            hall: { name: 'Screen 2' },
+            movie: { title: movieTitle, poster: moviePoster, duration: 135, rating: movieRating },
+            theater: { name: 'CinePlex Downtown' },
             price: { regular: 200, premium: 280, vip: 350 }
           } as any);
         } else {
@@ -90,7 +100,7 @@ const SeatSelection: React.FC = () => {
       }
     };
     if (id) load();
-  }, [id]);
+  }, [id, searchParams]);
 
   const total = useMemo(() => selected.reduce((t, s) => t + (s.price || 0), 0), [selected]);
   const counts = useMemo(() => {
@@ -127,13 +137,29 @@ const SeatSelection: React.FC = () => {
       const payload = {
         showtimeId: id,
         seats: selected.map((s) => ({ row: s.row, number: s.number, type: s.type })),
-        paymentMethod: 'card'
+        paymentMethod: 'card',
+        // Include movie data for dummy bookings
+        movieData: showtime ? {
+          title: showtime.movie.title,
+          poster: showtime.movie.poster,
+          rating: showtime.movie.rating,
+          duration: showtime.movie.duration
+        } : undefined
       };
       const { data } = await api.post('/bookings', payload);
-      alert('Booking created. Complete payment to confirm.');
-      navigate('/');
+      // Navigate to payment page with booking ID
+      navigate(`/payment?bookingId=${data.booking._id}`);
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Booking failed');
+      console.error('Booking error:', e?.response?.data);
+      const errorMessage = e?.response?.data?.message || 'Booking failed';
+      const validationErrors = e?.response?.data?.errors;
+      
+      if (validationErrors && validationErrors.length > 0) {
+        const errorDetails = validationErrors.map((err: any) => `${err.param}: ${err.msg}`).join('\n');
+        alert(`Validation failed:\n${errorDetails}`);
+      } else {
+        alert(errorMessage);
+      }
     }
   };
 

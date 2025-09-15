@@ -229,7 +229,7 @@ router.get('/:id', async (req, res) => {
       seats: row.seats.map(seat => ({
         number: seat.number,
         type: seat.type,
-        price: seat.price,
+        price: showtime.price[seat.type] || showtime.price.regular,
         isAvailable: showtime.isSeatAvailable(row.name, seat.number),
         isBooked: !showtime.isSeatAvailable(row.name, seat.number)
       }))

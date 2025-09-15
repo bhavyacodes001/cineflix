@@ -121,22 +121,30 @@ const Showtimes: React.FC = () => {
             { theater: { _id: 't1', name: 'CinePlex Downtown' }, showtimes: [] },
             { theater: { _id: 't2', name: 'Grand Cinema Mall' }, showtimes: [] }
           ];
-          const times = ['10:00', '13:30', '17:00', '20:30'];
-          const mkShowtime = (theater: Theater, t: string, idx: number): Showtime => ({
-            _id: `dummy-${idx}-${t}`,
-            date,
-            time: t,
-            endTime: '00:00',
-            price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 },
-            theater,
-            // @ts-ignore minimal hall info for UI
-            hall: { name: 'Screen 1' },
-            movie: { title: dummyTitle || 'Movie', poster: dummyPoster, duration: 120, rating: 'PG-13' }
-          });
+          const times = ['14:30', '17:45', '20:15', '22:30'];
+          const mkShowtime = (theater: Theater, t: string, idx: number): Showtime => {
+            // Calculate end time (135 minutes = 2h 15min)
+            const [hours, minutes] = t.split(':').map(Number);
+            const endTime = new Date();
+            endTime.setHours(hours, minutes + 135, 0, 0);
+            const endTimeStr = endTime.toTimeString().slice(0, 5);
+            
+            return {
+              _id: `dummy-${idx}-${t}`,
+              date,
+              time: t,
+              endTime: endTimeStr,
+              price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 },
+              theater,
+              // @ts-ignore minimal hall info for UI
+              hall: { name: 'Screen 2' },
+              movie: { title: dummyTitle || 'Movie', poster: dummyPoster, duration: 135, rating: 'PG-13' }
+            };
+          };
           theaters.forEach((g, i) => {
             g.showtimes = times.map((t, idx) => mkShowtime(g.theater as any, t, i * 10 + idx));
           });
-          setMovie({ _id: 'dummy', title: dummyTitle || 'Movie', poster: dummyPoster, duration: 120, rating: 'PG', genre: [] } as any);
+          setMovie({ _id: 'dummy', title: dummyTitle || 'Movie', poster: dummyPoster, duration: 135, rating: 'PG', genre: [] } as any);
           setGroups(theaters);
         }
       } catch (e: any) {
@@ -284,7 +292,19 @@ const Showtimes: React.FC = () => {
                     .map((st) => (
                       <button
                         key={st._id}
-                        onClick={() => navigate(`/showtimes/${st._id}`)}
+                        onClick={() => {
+                          if (st._id.startsWith('dummy-')) {
+                            // For dummy showtimes, pass movie data as URL parameters
+                            const params = new URLSearchParams({
+                              title: movie?.title || dummyTitle,
+                              poster: movie?.poster || dummyPoster,
+                              rating: movie?.rating || 'PG-13'
+                            });
+                            navigate(`/showtimes/${st._id}?${params.toString()}`);
+                          } else {
+                            navigate(`/showtimes/${st._id}`);
+                          }
+                        }}
                         title={`Ends ${st.endTime}`}
                         style={{
                           background: 'white',
@@ -330,7 +350,19 @@ const Showtimes: React.FC = () => {
                               .map((st) => (
                                 <button
                                   key={st._id}
-                                  onClick={() => navigate(`/showtimes/${st._id}`)}
+                                  onClick={() => {
+                                    if (st._id.startsWith('dummy-')) {
+                                      // For dummy showtimes, pass movie data as URL parameters
+                                      const params = new URLSearchParams({
+                                        title: movie?.title || dummyTitle,
+                                        poster: movie?.poster || dummyPoster,
+                                        rating: movie?.rating || 'PG-13'
+                                      });
+                                      navigate(`/showtimes/${st._id}?${params.toString()}`);
+                                    } else {
+                                      navigate(`/showtimes/${st._id}`);
+                                    }
+                                  }}
                                   style={{ background: '#f7f7f8', border: '1px solid #e6e6e6', padding: '6px 10px', borderRadius: 8, cursor: 'pointer' }}
                                   title={`Ends ${st.endTime}`}
                                 >
