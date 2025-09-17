@@ -46,7 +46,6 @@ const MyBookings: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'past' | 'cancelled'>('all');
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -68,23 +67,6 @@ const MyBookings: React.FC = () => {
     fetchBookings();
   }, [navigate]);
 
-  const filteredBookings = bookings.filter(booking => {
-    const now = new Date();
-    const showDateTime = new Date(booking.showDate);
-    const [hours, minutes] = booking.showTime.split(':');
-    showDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-    switch (filter) {
-      case 'upcoming':
-        return !booking.cancellation.isCancelled && showDateTime > now;
-      case 'past':
-        return !booking.cancellation.isCancelled && showDateTime <= now;
-      case 'cancelled':
-        return booking.cancellation.isCancelled;
-      default:
-        return true;
-    }
-  });
 
   const getStatusColor = (status: string, isCancelled: boolean) => {
     if (isCancelled) return '#dc3545';
@@ -180,54 +162,9 @@ const MyBookings: React.FC = () => {
         </p>
       </div>
 
-      {/* Filter Tabs */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '10px', 
-        marginBottom: '30px',
-        flexWrap: 'wrap'
-      }}>
-        {[
-          { key: 'all', label: 'All Bookings', count: bookings.length },
-          { key: 'upcoming', label: 'Upcoming', count: bookings.filter(b => !b.cancellation.isCancelled && new Date(b.showDate + ' ' + b.showTime) > new Date()).length },
-          { key: 'past', label: 'Past', count: bookings.filter(b => !b.cancellation.isCancelled && new Date(b.showDate + ' ' + b.showTime) <= new Date()).length },
-          { key: 'cancelled', label: 'Cancelled', count: bookings.filter(b => b.cancellation.isCancelled).length }
-        ].map(({ key, label, count }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key as any)}
-            style={{
-              padding: '10px 20px',
-              border: '1px solid #ddd',
-              borderRadius: '25px',
-              background: filter === key ? '#e50914' : 'white',
-              color: filter === key ? 'white' : '#666',
-              fontSize: '14px',
-              cursor: 'pointer',
-              fontWeight: '500',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            {label}
-            <span style={{
-              backgroundColor: filter === key ? 'rgba(255,255,255,0.2)' : '#f0f0f0',
-              color: filter === key ? 'white' : '#666',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}>
-              {count}
-            </span>
-          </button>
-        ))}
-      </div>
 
       {/* Bookings List */}
-      {filteredBookings.length === 0 ? (
+      {bookings.length === 0 ? (
         <div className="card" style={{ 
           padding: '60px', 
           textAlign: 'center',
@@ -235,13 +172,10 @@ const MyBookings: React.FC = () => {
         }}>
           <div style={{ fontSize: '64px', marginBottom: '20px' }}>🎬</div>
           <h3 style={{ color: '#333', marginBottom: '15px' }}>
-            {filter === 'all' ? 'No bookings found' : `No ${filter} bookings`}
+            No bookings found
           </h3>
           <p style={{ color: '#666', marginBottom: '25px' }}>
-            {filter === 'all' 
-              ? "You haven't made any bookings yet. Start exploring movies!"
-              : `You don't have any ${filter} bookings at the moment.`
-            }
+            You haven't made any bookings yet. Start exploring movies!
           </p>
           <button
             onClick={() => navigate('/movies')}
@@ -261,7 +195,7 @@ const MyBookings: React.FC = () => {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: '20px' }}>
-          {filteredBookings.map((booking) => {
+          {bookings.map((booking) => {
             const showDateTime = new Date(booking.showDate);
             const [hours, minutes] = booking.showTime.split(':');
             showDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);

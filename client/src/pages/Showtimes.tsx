@@ -88,7 +88,7 @@ const Showtimes: React.FC = () => {
             setGroups(apiGroups);
           } else {
             // Fallback: generate dummy groups so every local movie has slots
-            const basePrice = 200;
+            const basePrice = 280;
             const theaters: GroupedByTheater[] = [
               { theater: { _id: 't1', name: 'CinePlex Downtown' } as any, showtimes: [] },
               { theater: { _id: 't2', name: 'Grand Cinema Mall' } as any, showtimes: [] }
@@ -100,7 +100,7 @@ const Showtimes: React.FC = () => {
                 date,
                 time: t,
                 endTime: '00:00',
-                price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 },
+                price: { regular: basePrice, premium: basePrice + 100, vip: basePrice + 200 },
                 theater: g.theater,
                 hall: { name: 'Screen 1' },
                 movie: {
@@ -116,7 +116,7 @@ const Showtimes: React.FC = () => {
           }
         } else {
           // Generate mock theaters/showtimes for dummy TMDB movie
-          const basePrice = 200;
+          const basePrice = 250;
           const theaters: GroupedByTheater[] = [
             { theater: { _id: 't1', name: 'CinePlex Downtown' }, showtimes: [] },
             { theater: { _id: 't2', name: 'Grand Cinema Mall' }, showtimes: [] }
@@ -134,7 +134,7 @@ const Showtimes: React.FC = () => {
               date,
               time: t,
               endTime: endTimeStr,
-              price: { regular: basePrice, premium: basePrice + 80, vip: basePrice + 150 },
+              price: { regular: basePrice, premium: basePrice + 100, vip: basePrice + 200 },
               theater,
               // @ts-ignore minimal hall info for UI
               hall: { name: 'Screen 2' },

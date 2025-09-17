@@ -399,17 +399,48 @@ router.get('/tmdb/upcoming', async (req, res) => {
   }
 });
 
-// Helper function for TMDB API calls with retry logic
-async function tmdbApiCall(url, params, retries = 3) {
+// Simple in-memory cache for TMDB responses
+const tmdbCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Helper function for TMDB API calls with retry logic and caching
+async function tmdbApiCall(url, params, retries = 2) {
+  // Create cache key
+  const cacheKey = `${url}-${JSON.stringify(params)}`;
+  
+  // Check cache first
+  if (tmdbCache.has(cacheKey)) {
+    const cached = tmdbCache.get(cacheKey);
+    if (Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log('Returning cached TMDB response');
+      return cached.response;
+    } else {
+      tmdbCache.delete(cacheKey); // Remove expired cache
+    }
+  }
+  
   for (let i = 0; i < retries; i++) {
     try {
       const response = await axios.get(url, {
         params,
-        timeout: 15000, // 15 second timeout
+        timeout: 6000, // Reduced to 6 second timeout for faster failure
         headers: {
           'User-Agent': 'Movie-Booking-System/1.0'
         }
       });
+      
+      // Cache the successful response
+      tmdbCache.set(cacheKey, {
+        response,
+        timestamp: Date.now()
+      });
+      
+      // Keep cache size manageable (max 50 entries)
+      if (tmdbCache.size > 50) {
+        const firstKey = tmdbCache.keys().next().value;
+        tmdbCache.delete(firstKey);
+      }
+      
       return response;
     } catch (error) {
       console.error(`TMDB API attempt ${i + 1} failed:`, error.code || error.message);
@@ -418,8 +449,8 @@ async function tmdbApiCall(url, params, retries = 3) {
         throw error; // Last attempt failed
       }
       
-      // Wait before retry (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      // Shorter wait before retry
+      await new Promise(resolve => setTimeout(resolve, 800));
     }
   }
 }

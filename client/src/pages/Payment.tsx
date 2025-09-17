@@ -4,8 +4,19 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../utils/api';
 
-// Initialize Stripe
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_stripe_publishable_key');
+// Initialize Stripe with error handling
+const stripePromise = (async () => {
+  try {
+    const stripeKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_stripe_publishable_key';
+    console.log('Attempting to load Stripe with key:', stripeKey);
+    const stripe = await loadStripe(stripeKey);
+    console.log('Stripe loaded successfully:', !!stripe);
+    return stripe;
+  } catch (error) {
+    console.error('Failed to load Stripe:', error);
+    return null;
+  }
+})();
 
 type BookingDetails = {
   _id: string;
@@ -44,7 +55,8 @@ const PaymentForm: React.FC<{
   bookingDetails: BookingDetails; 
   onPaymentSuccess: (bookingId: string) => void;
   onPaymentError: (error: string) => void;
-}> = ({ bookingDetails, onPaymentSuccess, onPaymentError }) => {
+  stripeAvailable: boolean;
+}> = ({ bookingDetails, onPaymentSuccess, onPaymentError, stripeAvailable }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [selectedMethod, setSelectedMethod] = useState<string>('card');
@@ -68,23 +80,23 @@ const PaymentForm: React.FC<{
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
-    if (!stripe || !elements) {
-      return;
-    }
-
     setProcessing(true);
     setError('');
 
     try {
-      // Create payment intent
-      const response = await api.post('/payments/create-payment-intent', {
-        bookingId: bookingDetails._id,
-        amount: bookingDetails.totalAmount
-      });
+      if (selectedMethod === 'card' && stripeAvailable) {
+        // Stripe card payment
+        if (!stripe || !elements) {
+          throw new Error('Stripe not available');
+        }
 
-      const { clientSecret } = response.data;
+        // Create payment intent
+        const response = await api.post('/payments/create-payment-intent', {
+          bookingId: bookingDetails._id,
+          amount: bookingDetails.totalAmount
+        });
 
-      if (selectedMethod === 'card') {
+        const { clientSecret } = response.data;
         const cardElement = elements.getElement(CardElement);
         
         if (!cardElement) {
@@ -114,11 +126,15 @@ const PaymentForm: React.FC<{
           onPaymentSuccess(bookingDetails._id);
         }
       } else {
-        // Handle other payment methods (UPI, Net Banking, etc.)
-        // For now, we'll simulate success for non-card payments
-        setTimeout(() => {
-          onPaymentSuccess(bookingDetails._id);
-        }, 2000);
+        // Mock payment for development/testing or when Stripe is not available
+        console.log('Processing mock payment for method:', selectedMethod);
+        
+        // Simulate payment processing
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // For development, we'll simulate a successful payment
+        // In production, you would integrate with actual payment gateways
+        onPaymentSuccess(bookingDetails._id);
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || 'Payment failed';
@@ -201,57 +217,96 @@ const PaymentForm: React.FC<{
         {/* Card Payment Form */}
         {selectedMethod === 'card' && (
           <form onSubmit={handleSubmit} style={{ marginBottom: '20px' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '8px', 
-                fontWeight: '600',
-                fontSize: '14px'
-              }}>
-                Card Details
-              </label>
-              <div style={{
-                padding: '15px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                backgroundColor: 'white'
-              }}>
-                <CardElement options={cardElementOptions} />
-              </div>
-            </div>
+            {stripeAvailable ? (
+              <>
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ 
+                    display: 'block', 
+                    marginBottom: '8px', 
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}>
+                    Card Details
+                  </label>
+                  <div style={{
+                    padding: '15px',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    backgroundColor: 'white'
+                  }}>
+                    <CardElement options={cardElementOptions} />
+                  </div>
+                </div>
 
-            {error && (
-              <div style={{
-                padding: '12px',
-                backgroundColor: '#fee',
-                border: '1px solid #fcc',
-                borderRadius: '6px',
-                color: '#c33',
-                marginBottom: '20px',
-                fontSize: '14px'
+                {error && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#fee',
+                    border: '1px solid #fcc',
+                    borderRadius: '6px',
+                    color: '#c33',
+                    marginBottom: '20px',
+                    fontSize: '14px'
+                  }}>
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!stripe || processing}
+                  style={{
+                    width: '100%',
+                    padding: '15px',
+                    backgroundColor: processing ? '#ccc' : '#e50914',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: processing ? 'not-allowed' : 'pointer',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                >
+                  {processing ? 'Processing...' : `Pay ₹${bookingDetails.totalAmount}`}
+                </button>
+              </>
+            ) : (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '20px',
+                backgroundColor: '#fff3cd',
+                border: '1px solid #ffeaa7',
+                borderRadius: '8px',
+                marginBottom: '20px'
               }}>
-                {error}
+                <div style={{ fontSize: '24px', marginBottom: '10px' }}>⚠️</div>
+                <p style={{ color: '#856404', marginBottom: '15px' }}>
+                  Stripe payment is not available in development mode.
+                </p>
+                <p style={{ color: '#856404', fontSize: '14px', marginBottom: '20px' }}>
+                  This will simulate a successful payment for testing purposes.
+                </p>
+                <button
+                  type="submit"
+                  disabled={processing}
+                  style={{
+                    width: '100%',
+                    padding: '15px',
+                    backgroundColor: processing ? '#ccc' : '#e50914',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: processing ? 'not-allowed' : 'pointer',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                >
+                  {processing ? 'Processing...' : `Simulate Payment ₹${bookingDetails.totalAmount}`}
+                </button>
               </div>
             )}
-
-            <button
-              type="submit"
-              disabled={!stripe || processing}
-              style={{
-                width: '100%',
-                padding: '15px',
-                backgroundColor: processing ? '#ccc' : '#e50914',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: processing ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-            >
-              {processing ? 'Processing...' : `Pay ₹${bookingDetails.totalAmount}`}
-            </button>
           </form>
         )}
 
@@ -310,6 +365,21 @@ const Payment: React.FC = () => {
   const [bookingDetails, setBookingDetails] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [stripeAvailable, setStripeAvailable] = useState(false);
+
+  useEffect(() => {
+    // Check Stripe availability
+    const checkStripe = async () => {
+      try {
+        const stripe = await stripePromise;
+        setStripeAvailable(!!stripe);
+      } catch (error) {
+        console.error('Stripe check failed:', error);
+        setStripeAvailable(false);
+      }
+    };
+    checkStripe();
+  }, []);
 
   useEffect(() => {
     if (!bookingId) {
@@ -498,13 +568,23 @@ const Payment: React.FC = () => {
 
         {/* Payment Form */}
         <div>
-          <Elements stripe={stripePromise}>
+          {stripeAvailable ? (
+            <Elements stripe={stripePromise}>
+              <PaymentForm 
+                bookingDetails={bookingDetails}
+                onPaymentSuccess={handlePaymentSuccess}
+                onPaymentError={handlePaymentError}
+                stripeAvailable={stripeAvailable}
+              />
+            </Elements>
+          ) : (
             <PaymentForm 
               bookingDetails={bookingDetails}
               onPaymentSuccess={handlePaymentSuccess}
               onPaymentError={handlePaymentError}
+              stripeAvailable={stripeAvailable}
             />
-          </Elements>
+          )}
         </div>
       </div>
     </div>

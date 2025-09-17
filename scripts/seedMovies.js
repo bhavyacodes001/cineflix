@@ -138,7 +138,7 @@ function getMovieStatus(releaseDate) {
 }
 
 function getRandomPrice() {
-  const prices = [9.0, 9.5, 10.0, 10.5, 11.0, 11.5, 12.0];
+  const prices = [180, 200, 220, 250, 280, 300, 320];
   return prices[Math.floor(Math.random() * prices.length)];
 }
 

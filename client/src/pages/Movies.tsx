@@ -31,6 +31,7 @@ const Movies: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [cache, setCache] = useState<Map<string, any>>(new Map());
   const navigate = useNavigate();
 
   // Read search query from URL parameters on component mount
@@ -41,6 +42,8 @@ const Movies: React.FC = () => {
 
   const fetchMovies = useCallback(async (searchTerm: string = '', page: number = 1, append: boolean = false) => {
     try {
+      console.log('fetchMovies called:', { searchTerm, page, append, useDatabase });
+      
       if (append) {
         setLoadingMore(true);
       } else {
@@ -49,14 +52,33 @@ const Movies: React.FC = () => {
       setError('');
       setLoadingProgress('');
 
+      // Create cache key
+      const cacheKey = `${searchTerm}-${page}-${useDatabase}-${genre}-${dateFrom}-${dateTo}`;
+      
+      // Check cache first (only for non-append requests)
+      if (!append && cache.has(cacheKey)) {
+        const cachedData = cache.get(cacheKey);
+        setMovies(cachedData.movies);
+        setTotalPages(cachedData.totalPages);
+        setCurrentPage(cachedData.currentPage);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
       let pageMovies: any[] = [];
+      let responseData: any = null;
+      
       if (useDatabase) {
         const params: any = { limit: 20, page };
         if (searchTerm.trim()) params.title = searchTerm.trim();
         if (genre) params.genre = genre;
         if (dateFrom) params.releaseDateFrom = dateFrom;
         if (dateTo) params.releaseDateTo = dateTo;
+        
+        setLoadingProgress('Fetching from database...');
         const resp = await api.get('/movies', { params });
+        responseData = resp.data;
         pageMovies = (resp.data.movies || []).map((m: any) => ({
           id: m._id,
           title: m.title,
@@ -73,8 +95,18 @@ const Movies: React.FC = () => {
         const isSearch = Boolean(searchTerm.trim());
         const endpoint = isSearch ? '/movies/tmdb/search' : '/movies/tmdb/popular';
         const params: any = isSearch ? { q: searchTerm.trim(), page } : { page };
+        
+        setLoadingProgress(isSearch ? 'Searching TMDB...' : 'Loading popular movies...');
         const resp = await api.get(endpoint, { params });
+        responseData = resp.data;
         pageMovies = resp.data?.results || [];
+        console.log('TMDB API response:', { 
+          page, 
+          append, 
+          resultsCount: pageMovies.length, 
+          totalPages: resp.data?.total_pages,
+          currentPage: resp.data?.page 
+        });
         setTotalPages(resp.data?.total_pages || 1);
         setCurrentPage(resp.data?.page || page);
       }
@@ -88,7 +120,36 @@ const Movies: React.FC = () => {
           }
         }
       } else {
-        setMovies(prev => append ? [...prev, ...pageMovies] : pageMovies);
+        if (append) {
+          // For append requests, use functional update to get the latest movies state
+          console.log('Appending movies:', { 
+            currentMoviesCount: movies.length, 
+            newMoviesCount: pageMovies.length,
+            totalAfterAppend: movies.length + pageMovies.length 
+          });
+          setMovies(prevMovies => [...prevMovies, ...pageMovies]);
+        } else {
+          setMovies(pageMovies);
+          
+          // Cache the results (only for non-append requests)
+          if (responseData) {
+            setCache(prev => {
+              const newCache = new Map(prev);
+              newCache.set(cacheKey, {
+                movies: pageMovies,
+                totalPages: responseData?.total_pages || responseData?.pagination?.totalPages || 1,
+                currentPage: responseData?.page || responseData?.pagination?.currentPage || page,
+                timestamp: Date.now()
+              });
+              // Keep only last 10 cache entries
+              if (newCache.size > 10) {
+                const firstKey = newCache.keys().next().value;
+                newCache.delete(firstKey);
+              }
+              return newCache;
+            });
+          }
+        }
       }
     } catch (err: any) {
       if (err.response?.data?.message?.includes('TMDB API key not configured')) {
@@ -104,7 +165,7 @@ const Movies: React.FC = () => {
       }
       setLoadingProgress('');
     }
-  }, [useDatabase, genre, dateFrom, dateTo]);
+  }, [useDatabase, genre, dateFrom, dateTo, cache]);
 
   useEffect(() => {
     // Reset pagination and load first page when filters change
@@ -128,9 +189,24 @@ const Movies: React.FC = () => {
 
   // loadMovies replaced by fetchMovies (memoized)
 
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery !== searchParams.get('search')) {
+        if (searchQuery.trim()) {
+          setSearchParams({ search: searchQuery.trim() });
+        } else {
+          setSearchParams({});
+        }
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, searchParams]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Update URL parameters to reflect the search
+    // Immediate search on form submit
     if (searchQuery.trim()) {
       setSearchParams({ search: searchQuery.trim() });
     } else {
@@ -254,16 +330,75 @@ const Movies: React.FC = () => {
 
       {/* Loading State */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <LoadingSpinner size="large" text={`Loading ${searchQuery ? 'search results' : 'popular movies'}...`} />
-          {loadingProgress && (
-            <p style={{ color: '#e50914', fontSize: '16px', fontWeight: 'bold', marginTop: '20px' }}>
-              {loadingProgress}
+        <div>
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <LoadingSpinner size="large" text={`Loading ${searchQuery ? 'search results' : 'popular movies'}...`} />
+            {loadingProgress && (
+              <p style={{ color: '#e50914', fontSize: '16px', fontWeight: 'bold', marginTop: '20px' }}>
+                {loadingProgress}
+              </p>
+            )}
+            <p style={{ color: '#999', fontSize: '14px', marginTop: '20px' }}>
+              {searchQuery ? 'Fetching up to 40 movies' : 'Fetching up to 60 popular movies'}
             </p>
-          )}
-          <p style={{ color: '#999', fontSize: '14px', marginTop: '20px' }}>
-            {searchQuery ? 'Fetching up to 40 movies' : 'Fetching up to 60 popular movies'}
-          </p>
+          </div>
+          
+          {/* Loading Skeleton */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+            gap: '24px',
+            marginBottom: '20px'
+          }}>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} style={{
+                background: '#ffffff',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                animation: 'pulse 1.5s ease-in-out infinite'
+              }}>
+                <div style={{
+                  width: '100%',
+                  height: '320px',
+                  backgroundColor: '#f0f0f0',
+                  borderRadius: '12px 12px 0 0'
+                }} />
+                <div style={{ padding: '18px' }}>
+                  <div style={{
+                    height: '20px',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '4px',
+                    marginBottom: '10px'
+                  }} />
+                  <div style={{
+                    height: '16px',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '4px',
+                    marginBottom: '8px'
+                  }} />
+                  <div style={{
+                    height: '16px',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '4px',
+                    marginBottom: '12px',
+                    width: '60%'
+                  }} />
+                  <div style={{
+                    height: '12px',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '4px',
+                    marginBottom: '15px'
+                  }} />
+                  <div style={{
+                    height: '40px',
+                    backgroundColor: '#f0f0f0',
+                    borderRadius: '8px'
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -352,14 +487,19 @@ const Movies: React.FC = () => {
                   <img 
                     src={movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750/333/fff?text=No+Image')}
                     alt={movie.title}
+                    loading="lazy"
                     style={{ 
                       width: '100%', 
                       height: '320px', 
                       objectFit: 'cover',
-                      borderRadius: '12px 12px 0 0'
+                      borderRadius: '12px 12px 0 0',
+                      backgroundColor: '#f0f0f0'
                     }}
                     onError={(e) => {
                       e.currentTarget.src = 'https://via.placeholder.com/500x750/333/fff?text=No+Image';
+                    }}
+                    onLoad={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   />
                   {/* Overlay Buttons Container */}
@@ -549,10 +689,13 @@ const Movies: React.FC = () => {
 
       {/* Load More */}
       {!loading && !error && movies.length > 0 && currentPage < totalPages && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
           <button
             type="button"
-            onClick={() => fetchMovies(searchQuery, currentPage + 1, true)}
+            onClick={() => {
+              console.log('Load More clicked:', { currentPage, totalPages, searchQuery });
+              fetchMovies(searchQuery, currentPage + 1, true);
+            }}
             disabled={loadingMore}
             style={{
               background: loadingMore ? '#aaa' : 'linear-gradient(135deg, #e50914, #b20710)',
@@ -563,11 +706,33 @@ const Movies: React.FC = () => {
               fontSize: '14px',
               fontWeight: 'bold',
               cursor: loadingMore ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 15px rgba(229,9,20,0.3)'
+              boxShadow: '0 4px 15px rgba(229,9,20,0.3)',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (!loadingMore) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(229,9,20,0.4)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!loadingMore) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(229,9,20,0.3)';
+              }
             }}
           >
-            {loadingMore ? 'Loading...' : 'Load more'}
+            {loadingMore ? 'Loading more movies...' : `Load more (Page ${currentPage + 1} of ${totalPages})`}
           </button>
+          {loadingMore && (
+            <div style={{ 
+              fontSize: '12px', 
+              color: '#666',
+              textAlign: 'center'
+            }}>
+              Fetching next page of movies...
+            </div>
+          )}
         </div>
       )}
 
@@ -884,6 +1049,18 @@ const Movies: React.FC = () => {
           <p style={{ color: '#666' }}>Try a different search term or check your API configuration.</p>
         </div>
       )}
+      
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { 
+            opacity: 1; 
+          }
+          50% { 
+            opacity: 0.5; 
+          }
+        }
+      `}</style>
     </div>
   );
 };

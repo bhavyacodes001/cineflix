@@ -25,7 +25,7 @@ function makeSimpleHallLayout(rows = 5, seatsPerRow = 10) {
       let type = 'regular';
       if (n > seatsPerRow - 4) type = 'premium';
       if (n > seatsPerRow - 2) type = 'vip';
-      seats.push({ row: name, number: n, type, price: type === 'vip' ? 450 : type === 'premium' ? 350 : 250 });
+      seats.push({ row: name, number: n, type, price: type === 'vip' ? 600 : type === 'premium' ? 450 : 300 });
     }
     layoutRows.push({ name, seats });
   }
@@ -185,7 +185,7 @@ async function run() {
               hallName: theater.halls[0]?.name || 'Hall 1',
               date: d,
               time: t,
-              basePrice: movie.basePrice || 250
+              basePrice: movie.basePrice || 300 // Use reasonable default price
             });
             if (st) created += 1;
           }
