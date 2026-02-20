@@ -464,29 +464,26 @@ const Navbar: React.FC = () => {
                 width: '40px',
                 height: '40px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                background: 'linear-gradient(135deg, #e50914, #b81d13)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
-                fontWeight: 'bold',
-                fontSize: '16px',
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-                transition: 'all 0.3s ease',
-                border: '2px solid rgba(255, 255, 255, 0.2)'
+                transition: 'all 0.2s ease',
+                border: '2px solid rgba(255, 255, 255, 0.3)'
               }} 
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.1)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, #f52222, #d11a1a)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+                e.currentTarget.style.background = 'linear-gradient(135deg, #e50914, #b81d13)';
               }}
               >
-                U
+                <span style={{ fontSize: '18px' }}>👤</span>
               </div>
 
               {/* Profile Dropdown */}
@@ -495,33 +492,55 @@ const Navbar: React.FC = () => {
                   top: '100%',
                   right: 0,
                   marginTop: '8px',
-                  minWidth: '200px'
+                  minWidth: '240px',
+                  borderRadius: '8px',
+                  border: '1px solid #e0e0e0',
+                  overflow: 'hidden',
+                  backgroundColor: 'white'
                 }}>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
-                    <div style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
-                      Welcome back!
+                  <div style={{ 
+                    padding: '16px 20px', 
+                    borderBottom: '1px solid #f0f0f0',
+                    background: 'linear-gradient(135deg, #e50914 0%, #b81d13 100%)',
+                    color: 'white'
+                  }}>
+                    <div style={{ fontWeight: '600', fontSize: '16px', marginBottom: '4px' }}>
+                      👋 Welcome back!
                     </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      Manage your account
+                    <div style={{ fontSize: '13px', opacity: '0.9' }}>
+                      Manage your CinePlex account
                     </div>
                   </div>
                   
-                  <div style={{ padding: '8px 0' }}>
+                  <div style={{ padding: '8px 0', background: 'white' }}>
                     <a 
                       href="/bookings" 
                       className="dropdown-item-enhanced"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
+                        gap: '12px',
                         color: '#333',
                         textDecoration: 'none',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        padding: '12px 20px',
+                        transition: 'all 0.2s ease',
+                        borderLeft: '3px solid transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f8f9fa';
+                        e.currentTarget.style.borderLeftColor = '#e50914';
+                        e.currentTarget.style.color = '#e50914';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderLeftColor = 'transparent';
+                        e.currentTarget.style.color = '#333';
                       }}
                       onClick={() => setShowProfileDropdown(false)}
                     >
-                      <span>🎫</span>
-                      <span>My Bookings</span>
+                      <span style={{ fontSize: '18px' }}>🎬</span>
+                      <span style={{ fontWeight: '500' }}>My Bookings</span>
                     </a>
                     
                     <a 
@@ -530,15 +549,28 @@ const Navbar: React.FC = () => {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
+                        gap: '12px',
                         color: '#333',
                         textDecoration: 'none',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        padding: '12px 20px',
+                        transition: 'all 0.2s ease',
+                        borderLeft: '3px solid transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f8f9fa';
+                        e.currentTarget.style.borderLeftColor = '#e50914';
+                        e.currentTarget.style.color = '#e50914';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderLeftColor = 'transparent';
+                        e.currentTarget.style.color = '#333';
                       }}
                       onClick={() => setShowProfileDropdown(false)}
                     >
-                      <span>👤</span>
-                      <span>Profile Settings</span>
+                      <span style={{ fontSize: '18px' }}>⚙️</span>
+                      <span style={{ fontWeight: '500' }}>Profile Settings</span>
                     </a>
                     
                     <div style={{ 
@@ -553,19 +585,32 @@ const Navbar: React.FC = () => {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '10px',
-                        color: '#e50914',
+                        gap: '12px',
+                        color: '#dc3545',
                         textDecoration: 'none',
                         fontSize: '14px',
                         background: 'none',
                         border: 'none',
                         width: '100%',
                         textAlign: 'left',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        padding: '12px 20px',
+                        transition: 'all 0.2s ease',
+                        borderLeft: '3px solid transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fff5f5';
+                        e.currentTarget.style.borderLeftColor = '#dc3545';
+                        e.currentTarget.style.color = '#b02a37';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderLeftColor = 'transparent';
+                        e.currentTarget.style.color = '#dc3545';
                       }}
                     >
-                      <span>🚪</span>
-                      <span>Logout</span>
+                      <span style={{ fontSize: '18px' }}>🚪</span>
+                      <span style={{ fontWeight: '500' }}>Logout</span>
                     </button>
                   </div>
                 </div>

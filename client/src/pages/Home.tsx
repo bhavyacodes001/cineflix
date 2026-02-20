@@ -30,6 +30,7 @@ const Home: React.FC = () => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [featuredMovies, setFeaturedMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Loading movies...');
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('All');
 
@@ -39,56 +40,103 @@ const Home: React.FC = () => {
         setLoading(true);
         console.log('Fetching movies...');
         
-        // Fetch local movies and featured movies with error handling
-        const responses = await Promise.allSettled([
-          api.get('/movies?limit=24'),
-          api.get('/movies/featured'),
-          api.get('/movies/tmdb/popular?page=1') // Get TMDB movies to supplement
-        ]);
+        // Check for cached movies first (5 minute cache)
+        const cacheKey = 'cineflix_movies_cache';
+        const cachedData = localStorage.getItem(cacheKey);
+        const cacheTimestamp = localStorage.getItem(cacheKey + '_timestamp');
+        const now = Date.now();
+        const cacheExpiry = 5 * 60 * 1000; // 5 minutes
         
-        console.log('API responses:', responses);
+        if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < cacheExpiry) {
+          console.log('Loading movies from cache...');
+          setLoadingMessage('Loading from cache...');
+          const cached = JSON.parse(cachedData);
+          setMovies(cached.movies);
+          setFeaturedMovies(cached.featuredMovies);
+          setLoading(false);
+          return;
+        }
         
-        const localMovies = responses[0].status === 'fulfilled' ? (responses[0].value.data.movies || []) : [];
-        const featuredMovies = responses[1].status === 'fulfilled' ? (responses[1].value.data.movies || []) : [];
-        const tmdbMovies = responses[2].status === 'fulfilled' ? (responses[2].value.data.results || []) : [];
+        // Step 1: Load local movies first (fast, reliable)
+        console.log('Loading local movies...');
+        setLoadingMessage('Loading local movies...');
+        const localResponse = await api.get('/movies?limit=12');
+        const localMovies = localResponse.data.movies || [];
         
-        console.log('Local movies:', localMovies.length);
-        console.log('Featured movies:', featuredMovies.length);
-        console.log('TMDB movies:', tmdbMovies.length);
+        // Step 2: Load featured movies (fast, reliable)
+        setLoadingMessage('Loading featured movies...');
+        const featuredResponse = await api.get('/movies/featured');
+        const featuredMovies = featuredResponse.data.movies || [];
         
-        // Convert TMDB movies to our format for display
-        const convertedTmdbMovies: Movie[] = tmdbMovies.slice(0, 15).map((movie: any) => ({
-          _id: movie.id,
-          title: movie.title,
-          description: movie.overview || 'No description available',
-          genre: ['Popular'], // Simple genre for TMDB movies
-          director: movie.director || 'Unknown Director',
-          cast: movie.cast || [{ name: 'Unknown Cast' }],
-          poster: movie.poster_url || `https://image.tmdb.org/t/p/w500${movie.poster_path}` || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop',
-          imdbRating: movie.vote_average || 0,
-          rating: 'PG-13',
-          status: 'now_showing',
-          language: 'English',
-          subtitles: ['English'],
-          releaseDate: movie.release_date || new Date().toISOString(),
-          duration: movie.runtime || 120,
-          basePrice: 12.99,
-          isActive: true
-        }));
+        console.log('Local movies loaded:', localMovies.length);
+        console.log('Featured movies loaded:', featuredMovies.length);
         
-        // Combine and de-duplicate by title to avoid repeats
-        const combined = [...localMovies, ...convertedTmdbMovies];
-        const uniqueByTitle = new Map<string, any>();
-        combined.forEach((m: any) => {
-          const key = (m.title || '').toLowerCase().trim();
-          if (key && !uniqueByTitle.has(key)) uniqueByTitle.set(key, m);
-        });
-
-        const finalMovies = Array.from(uniqueByTitle.values());
-        console.log('Final movies count:', finalMovies.length);
-        
-        setMovies(finalMovies);
+        // Set initial data immediately for fast display
+        setMovies(localMovies);
         setFeaturedMovies(featuredMovies);
+        setLoading(false);
+        
+        // Step 3: Try to load TMDB movies in background (optional, can fail)
+        console.log('Loading TMDB movies in background...');
+        setLoadingMessage('Loading additional movies...');
+        try {
+          const tmdbResponse = await api.get('/movies/tmdb/popular?page=1');
+          const tmdbMovies = tmdbResponse.data.results || [];
+          
+          console.log('TMDB movies loaded:', tmdbMovies.length);
+          
+          // Convert TMDB movies to our format
+          const convertedTmdbMovies: Movie[] = tmdbMovies.slice(0, 10).map((movie: any) => ({
+            _id: movie.id,
+            title: movie.title,
+            description: movie.overview || 'No description available',
+            genre: ['Popular'],
+            director: movie.director || 'Unknown Director',
+            cast: movie.cast || [{ name: 'Unknown Cast' }],
+            poster: movie.poster_url || `https://image.tmdb.org/t/p/w500${movie.poster_path}` || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop',
+            imdbRating: movie.vote_average || 0,
+            rating: 'PG-13',
+            status: 'now_showing',
+            language: 'English',
+            subtitles: ['English'],
+            releaseDate: movie.release_date || new Date().toISOString(),
+            duration: movie.runtime || 120,
+            basePrice: 350, // Updated to reasonable price
+            isActive: true
+          }));
+          
+          // Combine and de-duplicate
+          const combined = [...localMovies, ...convertedTmdbMovies];
+          const uniqueByTitle = new Map<string, any>();
+          combined.forEach((m: any) => {
+            const key = (m.title || '').toLowerCase().trim();
+            if (key && !uniqueByTitle.has(key)) uniqueByTitle.set(key, m);
+          });
+
+          const finalMovies = Array.from(uniqueByTitle.values());
+          console.log('Final movies count with TMDB:', finalMovies.length);
+          
+          // Update with combined data
+          setMovies(finalMovies);
+          
+          // Cache the combined result
+          const cacheData = {
+            movies: finalMovies,
+            featuredMovies: featuredMovies
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+          localStorage.setItem(cacheKey + '_timestamp', now.toString());
+          
+        } catch (tmdbError) {
+          console.log('TMDB API failed, using local movies only:', tmdbError);
+          // Cache local movies only
+          const cacheData = {
+            movies: localMovies,
+            featuredMovies: featuredMovies
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+          localStorage.setItem(cacheKey + '_timestamp', now.toString());
+        }
       } catch (error) {
         console.error('Error fetching movies:', error);
         // Fallback movies if API fails
@@ -206,7 +254,7 @@ const Home: React.FC = () => {
         height: '400px',
         background: '#f8f9fa'
       }}>
-        <LoadingSpinner size="large" text="Loading movies..." />
+        <LoadingSpinner size="large" text={loadingMessage} />
       </div>
     );
   }
@@ -340,38 +388,107 @@ const Home: React.FC = () => {
         </div>
       </div>
 
-      {/* Only in Theatres Section */}
-      <div style={{ padding: '40px 20px', maxWidth: '1200px', margin: '0 auto' }}>
-        <h2 style={{ 
-          fontSize: '32px', 
-          fontWeight: 'bold', 
-          margin: '0 0 10px 0',
-          color: '#000'
-        }}>
-          Now Showing
-        </h2>
-        <p style={{ 
-          color: '#666', 
-          fontSize: '16px', 
-          margin: '0 0 30px 0' 
-        }}>
-          Popular movies currently available for booking
-        </p>
+      {/* Now Showing Section */}
+      <div style={{ 
+        padding: '60px 20px', 
+        maxWidth: '1200px', 
+        margin: '0 auto',
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
+        borderRadius: '20px',
+        marginTop: '40px',
+        marginBottom: '40px',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.08)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <h2 style={{ 
+            fontSize: '42px', 
+            fontWeight: '800', 
+            margin: '0 0 15px 0',
+            color: '#1a1a1a',
+            background: 'linear-gradient(135deg, #e50914 0%, #b81d13 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}>
+            🎬 Now Showing
+          </h2>
+          <p style={{ 
+            color: '#666', 
+            fontSize: '18px', 
+            margin: '0 0 40px 0',
+            fontWeight: '500'
+          }}>
+            Discover the latest blockbusters and timeless classics
+          </p>
+        </div>
 
-        {/* Filter Tabs */}
+        {/* Enhanced Filter Tabs */}
         <div style={{ 
           display: 'flex', 
-          gap: '10px', 
-          marginBottom: '30px', 
-          flexWrap: 'wrap'
+          gap: '12px', 
+          marginBottom: '40px', 
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          padding: '0 20px'
         }}>
-          {['All', 'Hindi', 'English', 'New Releases'].map((label, index) => (
+          {[
+            { label: 'All', icon: '🎭', count: movies.length },
+            { label: 'Hindi', icon: '🇮🇳', count: movies.filter(m => m.language === 'Hindi').length },
+            { label: 'English', icon: '🇺🇸', count: movies.filter(m => m.language === 'English').length },
+            { label: 'New Releases', icon: '✨', count: movies.filter(m => m.status === 'now_showing').length }
+          ].map((item, index) => (
             <button
-              key={label}
-              className={`filter-tab-enhanced ${activeFilter === label ? 'active' : ''} animate-slide-up animate-delay-${index + 1}`}
-              onClick={() => setActiveFilter(label)}
+              key={item.label}
+              onClick={() => setActiveFilter(item.label)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '14px 24px',
+                borderRadius: '30px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                background: activeFilter === item.label 
+                  ? 'linear-gradient(135deg, #e50914 0%, #b81d13 100%)' 
+                  : 'white',
+                color: activeFilter === item.label ? 'white' : '#333',
+                boxShadow: activeFilter === item.label 
+                  ? '0 8px 25px rgba(229, 9, 20, 0.3)' 
+                  : '0 4px 15px rgba(0,0,0,0.1)',
+                transform: activeFilter === item.label ? 'translateY(-2px)' : 'translateY(0)',
+                border: activeFilter === item.label ? 'none' : '2px solid #f0f0f0'
+              }}
+              onMouseEnter={(e) => {
+                if (activeFilter !== item.label) {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.15)';
+                  e.currentTarget.style.borderColor = '#e50914';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeFilter !== item.label) {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.1)';
+                  e.currentTarget.style.borderColor = '#f0f0f0';
+                }
+              }}
             >
-              {label}
+              <span style={{ fontSize: '18px' }}>{item.icon}</span>
+              <span>{item.label}</span>
+              <span style={{
+                backgroundColor: activeFilter === item.label ? 'rgba(255,255,255,0.2)' : '#f0f0f0',
+                color: activeFilter === item.label ? 'white' : '#666',
+                padding: '4px 10px',
+                borderRadius: '15px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                minWidth: '24px',
+                textAlign: 'center'
+              }}>
+                {item.count}
+              </span>
             </button>
           ))}
         </div>
@@ -408,7 +525,7 @@ const Home: React.FC = () => {
               className="movie-card-enhanced"
               onClick={() => { 
                 if (isMongoId) { 
-                  window.location.href = `/movies/${movie._id}`; 
+                  navigate(`/movies/${movie._id}`); 
                 } else {
                   setSelectedMovie(movie);
                 }

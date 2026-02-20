@@ -10,13 +10,13 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = process.env.TMDB_BASE_URL || 'https://api.themoviedb.org/3';
 
 // Function to fetch popular movies from TMDB
-async function fetchPopularMovies(page = 1, language = 'en-US') {
+async function fetchPopularMovies(page = 1) {
   try {
     const response = await axios.get(`${TMDB_BASE_URL}/movie/popular`, {
       params: {
         api_key: TMDB_API_KEY,
         page: page,
-        language: language
+        language: 'en-US'
       },
       timeout: 10000, // 10 second timeout
       headers: {
@@ -26,28 +26,6 @@ async function fetchPopularMovies(page = 1, language = 'en-US') {
     return response.data.results;
   } catch (error) {
     console.error('Error fetching movies from TMDB:', error.message);
-    return [];
-  }
-}
-
-// Function to fetch Hindi movies
-async function fetchHindiMovies(page = 1) {
-  try {
-    const response = await axios.get(`${TMDB_BASE_URL}/movie/popular`, {
-      params: {
-        api_key: TMDB_API_KEY,
-        page: page,
-        language: 'hi-IN',
-        region: 'IN'
-      },
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Movie-Booking-System/1.0'
-      }
-    });
-    return response.data.results;
-  } catch (error) {
-    console.error('Error fetching Hindi movies from TMDB:', error.message);
     return [];
   }
 }
@@ -137,7 +115,6 @@ function getRatingFromTMDB(adult) {
 function getLanguageName(langCode) {
   const languages = {
     'en': 'English',
-    'hi': 'Hindi',
     'es': 'Spanish',
     'fr': 'French',
     'de': 'German',
@@ -161,7 +138,7 @@ function getMovieStatus(releaseDate) {
 }
 
 function getRandomPrice() {
-  const prices = [15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 22.0];
+  const prices = [180, 200, 220, 250, 280, 300, 320];
   return prices[Math.floor(Math.random() * prices.length)];
 }
 
@@ -187,13 +164,8 @@ async function run() {
   console.log('Fetching popular movies from TMDB...');
   
   try {
-    // Fetch popular movies from TMDB (English and Hindi)
-    const [englishMovies, hindiMovies] = await Promise.all([
-      fetchPopularMovies(1, 'en-US'),
-      fetchHindiMovies(1)
-    ]);
-    
-    const popularMovies = [...englishMovies, ...hindiMovies];
+    // Fetch popular movies from TMDB
+    const popularMovies = await fetchPopularMovies(1);
     
     if (popularMovies.length === 0) {
       console.log('No movies fetched from TMDB. Using fallback sample data.');
@@ -215,7 +187,7 @@ async function run() {
           subtitles: ['Spanish', 'French'],
           imdbRating: 8.2,
           status: 'now_showing',
-          basePrice: 18.0,
+          basePrice: 10.0,
           isActive: true
         }
       ];

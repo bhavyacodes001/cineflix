@@ -22,7 +22,7 @@ router.post('/', auth, [
     }
     throw new Error('Valid showtime ID is required');
   }),
-  body('seats').isArray({ min: 1 }).withMessage('At least one seat must be selected'),
+  body('seats').isArray({ min: 1, max: 10 }).withMessage('You can book between 1 and 10 tickets at a time'),
   body('seats.*.row').custom((value) => {
     if (!value || typeof value !== 'string' || value.trim().length === 0) {
       throw new Error('Seat row is required');
