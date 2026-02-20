@@ -8,6 +8,8 @@ const stripe = stripeKey ? require('stripe')(stripeKey) : null;
 const Booking = require('../models/Booking');
 const Showtime = require('../models/Showtime');
 const { auth } = require('../middleware/auth');
+const { sendBookingConfirmation } = require('../utils/email');
+const { generateQRCode } = require('../utils/ticket');
 
 const router = express.Router();
 
@@ -146,16 +148,29 @@ router.post('/confirm-payment', auth, requireStripe, [
       });
     }
 
-    // Update booking status (seats are already reserved at booking creation time)
     booking.status = 'confirmed';
     booking.payment.status = 'completed';
     booking.payment.transactionId = paymentIntent.id;
     booking.payment.paidAt = new Date();
 
+    booking.qrCode = await generateQRCode({
+      bookingNumber: booking.bookingNumber,
+      movie: booking.showtime?.movie || bookingId,
+      seats: booking.tickets.map(t => `${t.seat.row}${t.seat.number}`),
+      showDate: booking.showDate,
+      showTime: booking.showTime
+    });
+
     await booking.save();
 
-    // TODO: Send confirmation email
-    // await sendBookingConfirmationEmail(booking);
+    await booking.populate([
+      { path: 'movie', select: 'title poster' },
+      { path: 'theater', select: 'name' },
+      { path: 'user', select: 'firstName lastName email' }
+    ]);
+    sendBookingConfirmation(booking).catch(err => console.error('Confirmation email failed:', err.message));
+    booking.notifications.bookingConfirmation = { sent: true, sentAt: new Date() };
+    await booking.save();
 
     res.json({
       message: 'Payment confirmed and booking completed successfully',

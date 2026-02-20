@@ -555,6 +555,36 @@ const Navbar: React.FC = () => {
                     </a>
                     
                     <a 
+                      href="/admin" 
+                      className="dropdown-item-enhanced"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        color: '#333',
+                        textDecoration: 'none',
+                        fontSize: '14px',
+                        padding: '12px 20px',
+                        transition: 'all 0.2s ease',
+                        borderLeft: '3px solid transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f8f9fa';
+                        e.currentTarget.style.borderLeftColor = '#fd7e14';
+                        e.currentTarget.style.color = '#fd7e14';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderLeftColor = 'transparent';
+                        e.currentTarget.style.color = '#333';
+                      }}
+                      onClick={() => setShowProfileDropdown(false)}
+                    >
+                      <span style={{ fontSize: '18px' }}>📊</span>
+                      <span style={{ fontWeight: '500' }}>Admin Panel</span>
+                    </a>
+                    
+                    <a 
                       href="/profile" 
                       className="dropdown-item-enhanced"
                       style={{

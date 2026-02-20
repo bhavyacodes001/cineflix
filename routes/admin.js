@@ -413,8 +413,36 @@ router.get('/reports/export', [
     }
 
     if (format === 'csv') {
-      // TODO: Implement CSV export
-      res.json({ message: 'CSV export not implemented yet', data });
+      if (!data || data.length === 0) {
+        return res.status(404).json({ message: 'No data to export' });
+      }
+      const flatData = data.map(d => {
+        const obj = d.toObject ? d.toObject() : d;
+        const flat = {};
+        function flatten(src, prefix = '') {
+          for (const [k, v] of Object.entries(src)) {
+            const key = prefix ? `${prefix}_${k}` : k;
+            if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) {
+              flatten(v, key);
+            } else {
+              flat[key] = Array.isArray(v) ? v.join('; ') : v;
+            }
+          }
+        }
+        flatten(obj);
+        return flat;
+      });
+      const headers = [...new Set(flatData.flatMap(r => Object.keys(r)))];
+      const csvRows = [headers.join(',')];
+      for (const row of flatData) {
+        csvRows.push(headers.map(h => {
+          const val = row[h] != null ? String(row[h]) : '';
+          return val.includes(',') || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val;
+        }).join(','));
+      }
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${type}-report-${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.send(csvRows.join('\n'));
     } else {
       res.json({ data });
     }

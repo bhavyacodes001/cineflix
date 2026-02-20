@@ -65,20 +65,23 @@ const BookingSuccess: React.FC = () => {
     fetchBookingDetails();
   }, [bookingId]);
 
-  const handleDownloadTicket = () => {
-    // Generate and download ticket PDF
-    const ticketData = {
-      bookingNumber: bookingDetails?.bookingNumber,
-      movie: bookingDetails?.movie.title,
-      theater: bookingDetails?.theater.name,
-      showDate: bookingDetails?.showDate,
-      showTime: bookingDetails?.showTime,
-      seats: bookingDetails?.tickets.map(t => `${t.seat.row}${t.seat.number}`).join(', '),
-      totalAmount: bookingDetails?.totalAmount
-    };
-    
-    // For now, we'll just show an alert. In a real app, you'd generate a PDF
-    alert(`Ticket downloaded for booking #${ticketData.bookingNumber}`);
+  const handleDownloadTicket = async () => {
+    if (!bookingDetails) return;
+    try {
+      const response = await api.get(`/bookings/${bookingDetails._id}/ticket`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `CinePlex-${bookingDetails.bookingNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to download ticket. Please try again.');
+    }
   };
 
   const handleShareBooking = () => {

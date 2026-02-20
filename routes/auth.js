@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
+const { sendPasswordResetEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -314,7 +315,7 @@ router.post('/forgot-password', [
     user.passwordResetExpires = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    // TODO: Send email with reset link using nodemailer
+    sendPasswordResetEmail(user, resetToken).catch(err => console.error('Password reset email failed:', err.message));
     res.json({
       message: 'If an account with that email exists, a password reset link has been sent.'
     });
@@ -323,6 +324,43 @@ router.post('/forgot-password', [
     res.status(500).json({ 
       message: 'Server error' 
     });
+  }
+});
+
+// @route   DELETE /api/auth/account
+// @desc    Delete user account and associated data
+// @access  Private
+router.delete('/account', auth, [
+  body('password').exists().withMessage('Password is required to confirm deletion')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
+    }
+
+    const user = await User.findById(req.user.userId).select('+password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isMatch = await user.comparePassword(req.body.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect password' });
+    }
+
+    const Booking = require('../models/Booking');
+    await Booking.updateMany(
+      { user: user._id, status: 'pending' },
+      { $set: { status: 'cancelled', 'cancellation.isCancelled': true, 'cancellation.cancelledBy': 'system', 'cancellation.cancelledAt': new Date() } }
+    );
+
+    await User.findByIdAndDelete(user._id);
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({ message: 'Server error during account deletion' });
   }
 });
 

@@ -16,6 +16,7 @@ import Payment from './pages/Payment';
 import BookingSuccess from './pages/BookingSuccess';
 import MyBookings from './pages/MyBookings';
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
           <Route path="/booking-success" element={<BookingSuccess />} />
           <Route path="/bookings" element={<MyBookings />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </div>
     </Router>

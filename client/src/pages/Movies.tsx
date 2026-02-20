@@ -165,6 +165,7 @@ const Movies: React.FC = () => {
       }
       setLoadingProgress('');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useDatabase, genre, dateFrom, dateTo, cache]);
 
   useEffect(() => {
@@ -202,6 +203,7 @@ const Movies: React.FC = () => {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timeoutId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, searchParams]);
 
   const handleSearch = (e: React.FormEvent) => {

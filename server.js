@@ -30,9 +30,14 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+const { startScheduledJobs } = require('./utils/sync');
+
 // Database connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/movie-ticket-booking')
-.then(() => console.log('MongoDB connected successfully'))
+.then(() => {
+  console.log('MongoDB connected successfully');
+  startScheduledJobs();
+})
 .catch(err => console.error('MongoDB connection error:', err));
 
 // Routes

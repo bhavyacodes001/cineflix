@@ -5,6 +5,8 @@ const Showtime = require('../models/Showtime');
 const Movie = require('../models/Movie');
 const Theater = require('../models/Theater');
 const { auth, adminAuth } = require('../middleware/auth');
+const { sendCancellationEmail } = require('../utils/email');
+const { generateTicketPDF, generateQRCode } = require('../utils/ticket');
 
 const router = express.Router();
 
@@ -396,8 +398,15 @@ router.put('/:id/cancel', auth, async (req, res) => {
       });
     }
 
-    // Cancel booking (also releases seats via cancelBooking method)
     await booking.cancelBooking(req.user.role === 'admin' ? 'admin' : 'user');
+
+    await booking.populate([
+      { path: 'movie', select: 'title' },
+      { path: 'user', select: 'firstName lastName email' }
+    ]);
+    sendCancellationEmail(booking).catch(err => console.error('Cancellation email failed:', err.message));
+    booking.notifications.cancellation = { sent: true, sentAt: new Date() };
+    await booking.save();
 
     res.json({
       message: 'Booking cancelled successfully',
@@ -514,6 +523,56 @@ router.get('/admin/all', auth, adminAuth, [
     res.status(500).json({ 
       message: 'Server error while fetching bookings' 
     });
+  }
+});
+
+// @route   GET /api/bookings/:id/ticket
+// @desc    Download booking ticket as PDF
+// @access  Private
+router.get('/:id/ticket', auth, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('movie', 'title poster')
+      .populate('theater', 'name address')
+      .populate('user', 'firstName lastName email');
+
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    if (booking.user._id.toString() !== req.user.userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    if (booking.status !== 'confirmed' && booking.status !== 'completed') {
+      return res.status(400).json({ message: 'Ticket is only available for confirmed bookings' });
+    }
+
+    if (!booking.qrCode) {
+      booking.qrCode = await generateQRCode({
+        bookingNumber: booking.bookingNumber,
+        movie: booking.movie?.title,
+        seats: booking.tickets.map(t => `${t.seat.row}${t.seat.number}`),
+        showDate: booking.showDate,
+        showTime: booking.showTime
+      });
+      await booking.save();
+    }
+
+    const pdfBuffer = await generateTicketPDF(booking);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="CinePlex-${booking.bookingNumber}.pdf"`,
+      'Content-Length': pdfBuffer.length
+    });
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Download ticket error:', error);
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: 'Invalid booking ID' });
+    }
+    res.status(500).json({ message: 'Server error while generating ticket' });
   }
 });
 
