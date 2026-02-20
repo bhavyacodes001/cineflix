@@ -5,6 +5,10 @@ const { auth, adminAuth, theaterOwnerAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // @route   GET /api/theaters
 // @desc    Get all theaters with filtering
 // @access  Public
@@ -31,11 +35,11 @@ router.get('/', [
     const filter = { isActive: true };
     
     if (req.query.city) {
-      filter['address.city'] = new RegExp(req.query.city, 'i');
+      filter['address.city'] = new RegExp(escapeRegex(req.query.city), 'i');
     }
     
     if (req.query.state) {
-      filter['address.state'] = new RegExp(req.query.state, 'i');
+      filter['address.state'] = new RegExp(escapeRegex(req.query.state), 'i');
     }
 
     // Execute query
@@ -223,9 +227,15 @@ router.put('/:id', auth, async (req, res) => {
       });
     }
 
+    const allowedFields = ['name', 'address', 'contact', 'halls', 'amenities', 'operatingHours'];
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
     const updatedTheater = await Theater.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     );
 

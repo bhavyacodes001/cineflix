@@ -91,8 +91,7 @@ const MovieDetails: React.FC = () => {
       el.removeEventListener('mousemove', handleMove);
       el.removeEventListener('mouseleave', handleLeave);
     };
-  }, []);
-
+  }, [movie]);
 
   // Show placeholder content while loading
   const displayMovie = movie || {

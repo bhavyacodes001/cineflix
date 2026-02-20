@@ -5,7 +5,8 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { api } from '../utils/api';
 
 // Initialize Stripe
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_stripe_publishable_key');
+const stripeKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 type BookingDetails = {
   _id: string;
@@ -497,13 +498,19 @@ const Payment: React.FC = () => {
 
         {/* Payment Form */}
         <div>
-          <Elements stripe={stripePromise}>
-            <PaymentForm 
-              bookingDetails={bookingDetails}
-              onPaymentSuccess={handlePaymentSuccess}
-              onPaymentError={handlePaymentError}
-            />
-          </Elements>
+          {stripePromise ? (
+            <Elements stripe={stripePromise}>
+              <PaymentForm 
+                bookingDetails={bookingDetails}
+                onPaymentSuccess={handlePaymentSuccess}
+                onPaymentError={handlePaymentError}
+              />
+            </Elements>
+          ) : (
+            <div style={{ padding: '20px', background: '#fff3cd', borderRadius: '8px', color: '#856404' }}>
+              Payment is not configured. Please set the <code>REACT_APP_STRIPE_PUBLISHABLE_KEY</code> environment variable.
+            </div>
+          )}
         </div>
       </div>
     </div>

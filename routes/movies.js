@@ -6,6 +6,10 @@ const axios = require('axios');
 
 const router = express.Router();
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // @route   GET /api/movies
 // @desc    Get all movies with filtering and pagination
 // @access  Public
@@ -49,7 +53,7 @@ router.get('/', [
     }
 
     if (req.query.title) {
-      filter.title = { $regex: req.query.title, $options: 'i' };
+      filter.title = { $regex: escapeRegex(req.query.title), $options: 'i' };
     }
 
     if (req.query.language) {
@@ -214,10 +218,12 @@ router.post('/', auth, adminAuth, [
       });
     }
 
-    const movieData = {
-      ...req.body,
-      releaseDate: new Date(req.body.releaseDate)
-    };
+    const allowedFields = ['title', 'description', 'genre', 'director', 'cast', 'releaseDate', 'duration', 'rating', 'poster', 'trailer', 'images', 'basePrice', 'language', 'subtitles'];
+    const movieData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) movieData[field] = req.body[field];
+    }
+    movieData.releaseDate = new Date(req.body.releaseDate);
 
     const movie = new Movie(movieData);
     await movie.save();
@@ -262,7 +268,11 @@ router.put('/:id', auth, adminAuth, [
       });
     }
 
-    const updateData = { ...req.body };
+    const allowedUpdateFields = ['title', 'description', 'genre', 'director', 'cast', 'releaseDate', 'duration', 'rating', 'poster', 'trailer', 'images', 'basePrice', 'language', 'subtitles', 'status'];
+    const updateData = {};
+    for (const field of allowedUpdateFields) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
     if (updateData.releaseDate) {
       updateData.releaseDate = new Date(updateData.releaseDate);
     }

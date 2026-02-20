@@ -146,21 +146,11 @@ router.post('/confirm-payment', auth, requireStripe, [
       });
     }
 
-    // Update booking status
+    // Update booking status (seats are already reserved at booking creation time)
     booking.status = 'confirmed';
     booking.payment.status = 'completed';
     booking.payment.transactionId = paymentIntent.id;
     booking.payment.paidAt = new Date();
-
-    // Book seats in showtime
-    for (const ticket of booking.tickets) {
-      await booking.showtime.bookSeat(
-        ticket.seat.row,
-        ticket.seat.number,
-        ticket.seat.type,
-        booking._id
-      );
-    }
 
     await booking.save();
 

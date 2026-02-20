@@ -195,14 +195,16 @@ router.put('/profile', auth, [
       });
     }
 
-    const { firstName, lastName, phone, email, preferences } = req.body;
+    const { firstName, lastName, phone, preferences } = req.body;
     const updateData = {};
 
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
     if (phone) updateData.phone = phone;
-    if (email) updateData.email = email;
-    if (preferences) updateData.preferences = { ...req.user.preferences, ...preferences };
+    if (preferences) {
+      const currentUser = await User.findById(req.user.userId).select('preferences');
+      updateData.preferences = { ...(currentUser?.preferences?.toObject() || {}), ...preferences };
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user.userId,

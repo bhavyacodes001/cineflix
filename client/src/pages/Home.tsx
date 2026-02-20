@@ -93,7 +93,7 @@ const Home: React.FC = () => {
             genre: ['Popular'],
             director: movie.director || 'Unknown Director',
             cast: movie.cast || [{ name: 'Unknown Cast' }],
-            poster: movie.poster_url || `https://image.tmdb.org/t/p/w500${movie.poster_path}` || 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop',
+            poster: movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1200&auto=format&fit=crop'),
             imdbRating: movie.vote_average || 0,
             rating: 'PG-13',
             status: 'now_showing',

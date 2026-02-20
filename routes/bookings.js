@@ -8,8 +8,19 @@ const { auth, adminAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// In-memory store for dummy bookings (in production, this would be in database)
+// In-memory store for dummy bookings with TTL (1 hour expiry, max 1000 entries)
 const dummyBookings = new Map();
+const DUMMY_BOOKING_TTL = 60 * 60 * 1000;
+const DUMMY_BOOKING_MAX = 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, booking] of dummyBookings) {
+    if (now - new Date(booking.bookingDate).getTime() > DUMMY_BOOKING_TTL) {
+      dummyBookings.delete(id);
+    }
+  }
+}, 10 * 60 * 1000);
 
 // @route   POST /api/bookings
 // @desc    Create a new booking
@@ -180,7 +191,10 @@ router.post('/', auth, [
         specialRequests
       };
 
-      // Store the booking in our in-memory store for later retrieval
+      if (dummyBookings.size >= DUMMY_BOOKING_MAX) {
+        const oldest = dummyBookings.keys().next().value;
+        dummyBookings.delete(oldest);
+      }
       dummyBookings.set(mockBooking._id, mockBooking);
 
       res.status(201).json({
@@ -409,10 +423,9 @@ router.put('/:id/cancel', auth, async (req, res) => {
 router.get('/booking-number/:bookingNumber', async (req, res) => {
   try {
     const booking = await Booking.findOne({ bookingNumber: req.params.bookingNumber })
-      .populate('movie', 'title poster duration')
-      .populate('theater', 'name address')
-      .populate('showtime', 'date time hall')
-      .populate('user', 'firstName lastName email');
+      .populate('movie', 'title poster')
+      .populate('theater', 'name')
+      .populate('showtime', 'date time');
 
     if (!booking) {
       return res.status(404).json({ 
@@ -420,18 +433,15 @@ router.get('/booking-number/:bookingNumber', async (req, res) => {
       });
     }
 
-    // Only return basic info for public access
     res.json({
       booking: {
         bookingNumber: booking.bookingNumber,
         movie: booking.movie,
         theater: booking.theater,
-        showtime: booking.showtime,
-        tickets: booking.tickets,
         status: booking.status,
-        bookingDate: booking.bookingDate,
         showDate: booking.showDate,
-        showTime: booking.showTime
+        showTime: booking.showTime,
+        ticketCount: booking.tickets.length
       }
     });
   } catch (error) {

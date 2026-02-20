@@ -9,6 +9,10 @@ const { auth, adminAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Apply admin authentication to all routes
 router.use(auth, adminAuth);
 
@@ -122,10 +126,11 @@ router.get('/users', [
     const filter = {};
     if (req.query.role) filter.role = req.query.role;
     if (req.query.search) {
+      const safeSearch = escapeRegex(req.query.search);
       filter.$or = [
-        { firstName: new RegExp(req.query.search, 'i') },
-        { lastName: new RegExp(req.query.search, 'i') },
-        { email: new RegExp(req.query.search, 'i') }
+        { firstName: new RegExp(safeSearch, 'i') },
+        { lastName: new RegExp(safeSearch, 'i') },
+        { email: new RegExp(safeSearch, 'i') }
       ];
     }
 

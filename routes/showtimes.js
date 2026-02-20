@@ -7,6 +7,10 @@ const { auth, adminAuth, theaterOwnerAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // @route   GET /api/showtimes
 // @desc    Get showtimes with filtering
 // @access  Public
@@ -60,7 +64,7 @@ router.get('/', [
     let theaterFilter = {};
     if (req.query.city) {
       const theatersInCity = await Theater.find({
-        'address.city': new RegExp(req.query.city, 'i'),
+        'address.city': new RegExp(escapeRegex(req.query.city), 'i'),
         isActive: true
       }).select('_id');
       
@@ -143,7 +147,7 @@ router.get('/movie/:movieId', [
     // Filter by city if provided
     if (req.query.city) {
       const theatersInCity = await Theater.find({
-        'address.city': new RegExp(req.query.city, 'i'),
+        'address.city': new RegExp(escapeRegex(req.query.city), 'i'),
         isActive: true
       }).select('_id');
       
@@ -405,9 +409,15 @@ router.put('/:id', auth, async (req, res) => {
       });
     }
 
+    const allowedFields = ['date', 'time', 'endTime', 'price', 'specialNotes', 'status'];
+    const updateData = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    }
+
     const updatedShowtime = await Showtime.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     ).populate([
       { path: 'movie', select: 'title poster duration' },

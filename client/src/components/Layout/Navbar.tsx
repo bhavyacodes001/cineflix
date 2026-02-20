@@ -11,7 +11,7 @@ const Navbar: React.FC = () => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const navigate = useNavigate();
-  const isLoggedIn = localStorage.getItem('token');
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
   const locationDropdownRef = useRef<HTMLDivElement>(null);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -126,6 +126,17 @@ const Navbar: React.FC = () => {
 
     detectLocation();
   }, [cities]);
+
+  // Re-check auth state when localStorage changes (login/logout from other tabs or same tab)
+  useEffect(() => {
+    const checkAuth = () => setIsLoggedIn(!!localStorage.getItem('token'));
+    window.addEventListener('storage', checkAuth);
+    const interval = setInterval(checkAuth, 1000);
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
