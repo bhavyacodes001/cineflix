@@ -74,19 +74,27 @@ const Showtimes: React.FC = () => {
         setLoading(false);
         return;
       }
-      const isDummy = movieId.startsWith('tmdb:');
+      const isDummy = movieId.startsWith('tmdb:') || movieId.startsWith('tmdb_');
       try {
         setLoading(true);
         setError('');
         if (!isDummy) {
-          const { data } = await api.get(`/showtimes/movie/${movieId}`, {
-            params: { date, city }
-          });
-          setMovie(data.movie);
-          const apiGroups = (data.theaters || []) as GroupedByTheater[];
-          if (apiGroups.length > 0) {
-            setGroups(apiGroups);
-          } else {
+          // Validate ObjectId format
+          if (!/^[0-9a-fA-F]{24}$/.test(movieId)) {
+            setError('Invalid movie ID format');
+            setLoading(false);
+            return;
+          }
+          
+          try {
+            const { data } = await api.get(`/showtimes/movie/${movieId}`, {
+              params: { date, city }
+            });
+            setMovie(data.movie);
+            const apiGroups = (data.theaters || []) as GroupedByTheater[];
+            if (apiGroups.length > 0) {
+              setGroups(apiGroups);
+            } else {
             // Fallback: generate dummy groups so every local movie has slots
             const basePrice = 200;
             const theaters: GroupedByTheater[] = [
@@ -114,7 +122,24 @@ const Showtimes: React.FC = () => {
             });
             setGroups(theaters);
           }
+          } catch (movieErr: any) {
+            console.error('Movie fetch error:', movieErr);
+            if (movieErr.response?.status === 404) {
+              setError('Movie not found in our database');
+            } else {
+              setError('Failed to load movie details');
+            }
+            setLoading(false);
+            return;
+          }
         } else {
+          const tmdbId = movieId.replace(/^tmdb[:_]/, '');
+          if (!/^\d+$/.test(tmdbId)) {
+            setError('Invalid TMDB movie ID');
+            setLoading(false);
+            return;
+          }
+          
           // Generate mock theaters/showtimes for dummy TMDB movie
           const basePrice = 200;
           const theaters: GroupedByTheater[] = [
@@ -175,7 +200,7 @@ const Showtimes: React.FC = () => {
       if (viewMode !== 'calendar' || !movieId) return;
       try {
         setCalendarLoading(true);
-        const isDummy = movieId.startsWith('tmdb:');
+        const isDummy = movieId.startsWith('tmdb:') || movieId.startsWith('tmdb_');
         if (!isDummy) {
           const days = buildWeekFrom(date);
           const requests = days.map((d) => api.get(`/showtimes/movie/${movieId}`, { params: { date: d, city } }));

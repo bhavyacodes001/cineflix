@@ -34,7 +34,7 @@ function makeSimpleHallLayout(rows = 5, seatsPerRow = 10) {
 
 async function ensureTheaters() {
   const existing = await Theater.find({ isActive: true });
-  if (existing.length >= 5) return existing;
+  if (existing.length >= 6) return existing;
 
   const fakeOwnerId = new mongoose.Types.ObjectId();
   const templates = [
@@ -62,6 +62,11 @@ async function ensureTheaters() {
       name: 'CityScreen',
       city: 'Sonipat', state: 'HR', lat: 28.9931, lon: 77.0151,
       halls: [{ name: 'Classic', rows: 5, cols: 10 }]
+    },
+    {
+      name: 'Samalkha Cinema',
+      city: 'Samalkha', state: 'HR', lat: 29.0, lon: 77.0,
+      halls: [{ name: 'Screen 1', rows: 6, cols: 10 }]
     }
   ];
 
@@ -106,6 +111,37 @@ function toEndTime(startTime, durationMins = 120) {
   return `${eh}:${em}`;
 }
 
+function calculateLocationBasedPrice(basePrice, city, time) {
+  // Location multipliers
+  const locationMultipliers = {
+    'Mumbai': 1.3,    // Higher cost of living
+    'Delhi': 1.2,     // Capital city premium
+    'Bengaluru': 1.25, // Tech hub premium
+    'Hyderabad': 1.15, // Growing city
+    'Sonipat': 0.9,   // Smaller city discount
+    'Samalkha': 0.85  // Rural area discount
+  };
+  
+  // Time-based multipliers
+  const timeMultipliers = {
+    'morning': 0.8,   // 8:00-12:00
+    'afternoon': 1.0, // 12:00-17:00
+    'evening': 1.3,   // 17:00-21:00
+    'night': 1.1      // 21:00+
+  };
+  
+  const [hour] = time.split(':').map(Number);
+  let timeCategory = 'afternoon';
+  if (hour >= 8 && hour < 12) timeCategory = 'morning';
+  else if (hour >= 17 && hour < 21) timeCategory = 'evening';
+  else if (hour >= 21) timeCategory = 'night';
+  
+  const locationMultiplier = locationMultipliers[city] || 1.0;
+  const timeMultiplier = timeMultipliers[timeCategory];
+  
+  return Math.round(basePrice * locationMultiplier * timeMultiplier);
+}
+
 async function createShowtimeIfMissing({ movie, theater, hallName, date, time, basePrice }) {
   const exists = await Showtime.findOne({
     movie: movie._id,
@@ -125,6 +161,10 @@ async function createShowtimeIfMissing({ movie, theater, hallName, date, time, b
   };
 
   const duration = movie.duration || 120;
+  
+  // Calculate location and time-based pricing
+  const adjustedBasePrice = calculateLocationBasedPrice(basePrice, theater.address.city, time);
+  
   const showtime = new Showtime({
     movie: movie._id,
     theater: theater._id,
@@ -133,9 +173,9 @@ async function createShowtimeIfMissing({ movie, theater, hallName, date, time, b
     time,
     endTime: toEndTime(time, duration),
     price: {
-      regular: basePrice,
-      premium: Math.round(basePrice * 1.4),
-      vip: Math.round(basePrice * 1.8)
+      regular: adjustedBasePrice,
+      premium: Math.round(adjustedBasePrice * 1.5),
+      vip: Math.round(adjustedBasePrice * 2.2)
     },
     availableSeats
   });
@@ -149,7 +189,7 @@ async function run() {
     await connect();
 
     const theaters = await ensureTheaters();
-    const movies = await Movie.find({ isActive: true }).sort({ releaseDate: -1 }).limit(6);
+    const movies = await Movie.find({ isActive: true }).sort({ releaseDate: -1 }).limit(20);
     if (movies.length === 0) {
       console.log('No active movies found. Seed movies first.');
       return;
@@ -185,7 +225,7 @@ async function run() {
               hallName: theater.halls[0]?.name || 'Hall 1',
               date: d,
               time: t,
-              basePrice: movie.basePrice || 250
+              basePrice: movie.basePrice || 18
             });
             if (st) created += 1;
           }

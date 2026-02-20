@@ -1,16 +1,27 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripeKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeKey) {
+  console.warn('WARNING: STRIPE_SECRET_KEY not set. Payment endpoints will return errors.');
+}
+const stripe = stripeKey ? require('stripe')(stripeKey) : null;
 const Booking = require('../models/Booking');
 const Showtime = require('../models/Showtime');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
+const requireStripe = (req, res, next) => {
+  if (!stripe) {
+    return res.status(503).json({ message: 'Payment service unavailable. Stripe is not configured.' });
+  }
+  next();
+};
+
 // @route   POST /api/payments/create-payment-intent
 // @desc    Create Stripe payment intent
 // @access  Private
-router.post('/create-payment-intent', auth, [
+router.post('/create-payment-intent', auth, requireStripe, [
   body('bookingId').isMongoId().withMessage('Valid booking ID is required'),
   body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0')
 ], async (req, res) => {
@@ -93,7 +104,7 @@ router.post('/create-payment-intent', auth, [
 // @route   POST /api/payments/confirm-payment
 // @desc    Confirm payment and update booking status
 // @access  Private
-router.post('/confirm-payment', auth, [
+router.post('/confirm-payment', auth, requireStripe, [
   body('paymentIntentId').isString().withMessage('Payment intent ID is required'),
   body('bookingId').isMongoId().withMessage('Valid booking ID is required')
 ], async (req, res) => {
@@ -171,7 +182,7 @@ router.post('/confirm-payment', auth, [
 // @route   POST /api/payments/refund
 // @desc    Process refund for cancelled booking
 // @access  Private
-router.post('/refund', auth, [
+router.post('/refund', auth, requireStripe, [
   body('bookingId').isMongoId().withMessage('Valid booking ID is required'),
   body('amount').optional().isFloat({ min: 0 }).withMessage('Amount must be non-negative')
 ], async (req, res) => {
@@ -360,7 +371,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 router.get('/booking/:bookingId/status', auth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.bookingId)
-      .select('payment status bookingNumber');
+      .select('payment status bookingNumber user');
 
     if (!booking) {
       return res.status(404).json({ 

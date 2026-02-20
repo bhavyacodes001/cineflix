@@ -107,9 +107,9 @@ const MyBookings: React.FC = () => {
     }
 
     try {
-      await api.post(`/bookings/${bookingId}/cancel`);
+      await api.put(`/bookings/${bookingId}/cancel`);
       // Refresh bookings
-      const response = await api.get('/bookings/my-bookings');
+      const response = await api.get('/bookings');
       setBookings(response.data.bookings);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to cancel booking');
@@ -117,7 +117,7 @@ const MyBookings: React.FC = () => {
   };
 
   const handleViewBooking = (bookingId: string) => {
-    navigate(`/booking-details/${bookingId}`);
+    navigate(`/booking-success?bookingId=${bookingId}`);
   };
 
   if (loading) {
@@ -189,8 +189,20 @@ const MyBookings: React.FC = () => {
       }}>
         {[
           { key: 'all', label: 'All Bookings', count: bookings.length },
-          { key: 'upcoming', label: 'Upcoming', count: bookings.filter(b => !b.cancellation.isCancelled && new Date(b.showDate + ' ' + b.showTime) > new Date()).length },
-          { key: 'past', label: 'Past', count: bookings.filter(b => !b.cancellation.isCancelled && new Date(b.showDate + ' ' + b.showTime) <= new Date()).length },
+          { key: 'upcoming', label: 'Upcoming', count: bookings.filter(b => {
+            if (b.cancellation.isCancelled) return false;
+            const d = new Date(b.showDate);
+            const [h, m] = b.showTime.split(':');
+            d.setHours(parseInt(h), parseInt(m), 0, 0);
+            return d > new Date();
+          }).length },
+          { key: 'past', label: 'Past', count: bookings.filter(b => {
+            if (b.cancellation.isCancelled) return false;
+            const d = new Date(b.showDate);
+            const [h, m] = b.showTime.split(':');
+            d.setHours(parseInt(h), parseInt(m), 0, 0);
+            return d <= new Date();
+          }).length },
           { key: 'cancelled', label: 'Cancelled', count: bookings.filter(b => b.cancellation.isCancelled).length }
         ].map(({ key, label, count }) => (
           <button

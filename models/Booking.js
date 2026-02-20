@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const ticketSchema = new mongoose.Schema({
   seat: {
@@ -143,14 +144,13 @@ bookingSchema.index({ showtime: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ 'payment.transactionId': 1 });
 
-// Generate unique booking number
-bookingSchema.pre('save', async function(next) {
+// Generate unique booking number using crypto-random to avoid race conditions
+bookingSchema.pre('save', function(next) {
   if (!this.bookingNumber) {
-    const count = await mongoose.model('Booking').countDocuments();
-    this.bookingNumber = `BK${Date.now()}${String(count + 1).padStart(4, '0')}`;
+    const randomPart = crypto.randomBytes(4).toString('hex').toUpperCase();
+    this.bookingNumber = `BK${Date.now()}${randomPart}`;
   }
   
-  // Generate unique ticket IDs
   if (this.tickets && this.tickets.length > 0) {
     this.tickets.forEach((ticket, index) => {
       if (!ticket.ticketId) {
@@ -232,8 +232,8 @@ bookingSchema.methods.calculateRefundAmount = function() {
   return 0;
 };
 
-// Method to cancel booking
-bookingSchema.methods.cancelBooking = function(cancelledBy = 'user') {
+// Method to cancel booking and release seats
+bookingSchema.methods.cancelBooking = async function(cancelledBy = 'user') {
   if (!this.canBeCancelled()) {
     throw new Error('Booking cannot be cancelled');
   }
@@ -243,6 +243,18 @@ bookingSchema.methods.cancelBooking = function(cancelledBy = 'user') {
   this.cancellation.cancelledAt = new Date();
   this.cancellation.cancelledBy = cancelledBy;
   this.cancellation.refundAmount = this.calculateRefundAmount();
+  
+  // Release booked seats back to the showtime
+  if (this.showtime && this.tickets && this.tickets.length > 0) {
+    const Showtime = mongoose.model('Showtime');
+    for (const ticket of this.tickets) {
+      try {
+        await Showtime.releaseSeatAtomic(this.showtime, ticket.seat.row, ticket.seat.number);
+      } catch (err) {
+        console.error(`Failed to release seat ${ticket.seat.row}${ticket.seat.number}:`, err.message);
+      }
+    }
+  }
   
   return this.save();
 };

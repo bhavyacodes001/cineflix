@@ -211,6 +211,17 @@ router.post('/', auth, [
       const booking = new Booking(bookingData);
       await booking.save();
 
+      // Reserve seats atomically so no one else can grab them
+      for (const ticket of validatedSeats) {
+        await Showtime.bookSeatAtomic(
+          showtimeId,
+          ticket.seat.row,
+          ticket.seat.number,
+          ticket.seat.type,
+          booking._id
+        );
+      }
+
       // Populate booking data
       await booking.populate([
         { path: 'movie', select: 'title poster duration' },
@@ -371,13 +382,8 @@ router.put('/:id/cancel', auth, async (req, res) => {
       });
     }
 
-    // Cancel booking
+    // Cancel booking (also releases seats via cancelBooking method)
     await booking.cancelBooking(req.user.role === 'admin' ? 'admin' : 'user');
-
-    // Release seats in showtime
-    for (const ticket of booking.tickets) {
-      await booking.showtime.releaseSeat(ticket.seat.row, ticket.seat.number);
-    }
 
     res.json({
       message: 'Booking cancelled successfully',

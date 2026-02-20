@@ -114,11 +114,10 @@ const PaymentForm: React.FC<{
           onPaymentSuccess(bookingDetails._id);
         }
       } else {
-        // Handle other payment methods (UPI, Net Banking, etc.)
-        // For now, we'll simulate success for non-card payments
-        setTimeout(() => {
-          onPaymentSuccess(bookingDetails._id);
-        }, 2000);
+        // Non-card payment methods are not yet integrated with a payment gateway
+        setError(`${selectedMethod.toUpperCase()} payment is not yet available. Please use a credit/debit card.`);
+        setProcessing(false);
+        return;
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || 'Payment failed';

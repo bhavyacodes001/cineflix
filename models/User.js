@@ -33,8 +33,7 @@ const userSchema = new mongoose.Schema({
     match: [/^\+?[\d\s-()]+$/, 'Please enter a valid phone number']
   },
   dateOfBirth: {
-    type: Date,
-    required: [true, 'Date of birth is required']
+    type: Date
   },
   role: {
     type: String,

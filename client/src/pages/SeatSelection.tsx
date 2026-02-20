@@ -67,8 +67,7 @@ const SeatSelection: React.FC = () => {
               const type = rIdx < 3 ? 'vip' : rIdx < 6 ? 'premium' : 'regular';
               const price = type === 'vip' ? 350 : type === 'premium' ? 280 : 200;
               const isBooked = Math.random() < 0.08;
-              const isAvailable = !isBooked || Math.random() > 0.5;
-              return { number: sIdx + 1, type, price, isAvailable, isBooked } as SeatCell;
+              return { number: sIdx + 1, type, price, isAvailable: !isBooked, isBooked } as SeatCell;
             });
             return { rowName: row, seats } as SeatRow;
           });

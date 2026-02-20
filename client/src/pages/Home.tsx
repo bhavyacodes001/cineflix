@@ -359,7 +359,12 @@ const Home: React.FC = () => {
         </p>
 
         {/* Filter Tabs */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
+        <div style={{ 
+          display: 'flex', 
+          gap: '10px', 
+          marginBottom: '30px', 
+          flexWrap: 'wrap'
+        }}>
           {['All', 'Hindi', 'English', 'New Releases'].map((label, index) => (
             <button
               key={label}

@@ -145,34 +145,59 @@ showtimeSchema.methods.isSeatAvailable = function(row, number) {
   return !this.bookedSeats.some(seat => seat.row === row && seat.number === number);
 };
 
-// Method to book a seat
-showtimeSchema.methods.bookSeat = function(row, number, type, bookingId) {
-  if (!this.isSeatAvailable(row, number)) {
-    throw new Error('Seat is already booked');
+// Atomic seat booking — uses findOneAndUpdate to prevent race conditions
+showtimeSchema.statics.bookSeatAtomic = async function(showtimeId, row, number, type, bookingId) {
+  const availableKey = `availableSeats.${type}`;
+  const result = await this.findOneAndUpdate(
+    {
+      _id: showtimeId,
+      [availableKey]: { $gt: 0 },
+      'bookedSeats': { $not: { $elemMatch: { row, number } } }
+    },
+    {
+      $push: { bookedSeats: { row, number, type, bookingId } },
+      $inc: { [availableKey]: -1 }
+    },
+    { new: true }
+  );
+  if (!result) {
+    throw new Error('Seat is already booked or unavailable');
   }
-  
-  if (this.availableSeats[type] <= 0) {
-    throw new Error('No seats available for this type');
-  }
-  
-  this.bookedSeats.push({ row, number, type, bookingId });
-  this.availableSeats[type] -= 1;
-  
-  return this.save();
+  return result;
 };
 
-// Method to release a seat
-showtimeSchema.methods.releaseSeat = function(row, number) {
-  const seatIndex = this.bookedSeats.findIndex(seat => seat.row === row && seat.number === number);
-  if (seatIndex === -1) {
-    throw new Error('Seat not found in booked seats');
-  }
+// Instance method kept for backward compatibility — delegates to atomic version
+showtimeSchema.methods.bookSeat = async function(row, number, type, bookingId) {
+  return this.constructor.bookSeatAtomic(this._id, row, number, type, bookingId);
+};
+
+// Atomic seat release
+showtimeSchema.statics.releaseSeatAtomic = async function(showtimeId, row, number) {
+  const showtime = await this.findById(showtimeId);
+  if (!showtime) throw new Error('Showtime not found');
   
-  const seat = this.bookedSeats[seatIndex];
-  this.availableSeats[seat.type] += 1;
-  this.bookedSeats.splice(seatIndex, 1);
+  const seat = showtime.bookedSeats.find(s => s.row === row && s.number === number);
+  if (!seat) throw new Error('Seat not found in booked seats');
   
-  return this.save();
+  const availableKey = `availableSeats.${seat.type}`;
+  const result = await this.findOneAndUpdate(
+    {
+      _id: showtimeId,
+      'bookedSeats': { $elemMatch: { row, number } }
+    },
+    {
+      $pull: { bookedSeats: { row, number } },
+      $inc: { [availableKey]: 1 }
+    },
+    { new: true }
+  );
+  if (!result) throw new Error('Failed to release seat');
+  return result;
+};
+
+// Instance method kept for backward compatibility
+showtimeSchema.methods.releaseSeat = async function(row, number) {
+  return this.constructor.releaseSeatAtomic(this._id, row, number);
 };
 
 module.exports = mongoose.model('Showtime', showtimeSchema);

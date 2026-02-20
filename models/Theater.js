@@ -150,15 +150,10 @@ theaterSchema.methods.getTotalCapacity = function() {
 
 // Method to check if theater is open at given time
 theaterSchema.methods.isOpenAt = function(date) {
-  const day = date.toLocaleLowerCase().slice(0, 3) + 'day';
-  const dayKey = day === 'monday' ? 'monday' :
-                 day === 'tuesday' ? 'tuesday' :
-                 day === 'wednesday' ? 'wednesday' :
-                 day === 'thursday' ? 'thursday' :
-                 day === 'friday' ? 'friday' :
-                 day === 'saturday' ? 'saturday' : 'sunday';
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayKey = days[date.getDay()];
   
-  const hours = this.operatingHours[dayKey];
+  const hours = this.operatingHours && this.operatingHours[dayKey];
   if (!hours || !hours.open || !hours.close) return false;
   
   const currentTime = date.toTimeString().slice(0, 5);

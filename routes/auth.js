@@ -297,12 +297,11 @@ router.post('/forgot-password', [
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ 
-        message: 'User not found with this email' 
+      return res.json({ 
+        message: 'If an account with that email exists, a password reset link has been sent.' 
       });
     }
 
-    // Generate reset token (in a real app, you'd send this via email)
     const resetToken = jwt.sign(
       { userId: user._id, type: 'password_reset' },
       process.env.JWT_SECRET,
@@ -313,11 +312,9 @@ router.post('/forgot-password', [
     user.passwordResetExpires = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    // TODO: Send email with reset link
-    // For now, just return the token (remove this in production)
+    // TODO: Send email with reset link using nodemailer
     res.json({
-      message: 'Password reset token generated',
-      resetToken // Remove this in production
+      message: 'If an account with that email exists, a password reset link has been sent.'
     });
   } catch (error) {
     console.error('Forgot password error:', error);

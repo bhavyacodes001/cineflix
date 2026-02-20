@@ -1,48 +1,74 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 
 type Movie = {
   _id: string;
+  id?: string | number;
   title: string;
   description: string;
   genre: string[];
   poster: string;
   releaseDate: string;
-  duration: number;
-  rating: string;
+  duration?: number;
+  runtime?: number;
+  rating?: string;
   imdbRating?: number;
-  language: string;
+  language?: string;
   subtitles?: string[];
   formattedDuration?: string;
   cast?: { name: string }[];
   director?: string;
   trailer?: string;
+  source?: string;
+  backdrop?: string;
 };
 
 const MovieDetails: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [movie, setMovie] = useState<Movie | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'overview' | 'cast' | 'reviews'>('overview');
   const heroRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchMovie = async () => {
-      try {
-        setLoading(true);
-        const { data } = await api.get(`/movies/${id}`);
-        setMovie(data.movie);
-      } catch (err: any) {
+  const fetchMovie = useCallback(async () => {
+    try {
+      setError('');
+      
+      // Determine if it's a TMDB movie or local movie based on the route
+      const isTmdbRoute = window.location.pathname.includes('/movies/tmdb/');
+      const endpoint = isTmdbRoute ? `/movies/tmdb/${id}` : `/movies/${id}`;
+      
+      const { data } = await api.get(endpoint);
+      setMovie(data.movie);
+    } catch (err: any) {
+      console.error('Movie fetch error:', err);
+      
+      // Handle specific error types with user-friendly messages
+      if (err.response?.status === 503) {
+        setError('Movie service is temporarily unavailable. Please try again in a few moments.');
+      } else if (err.response?.status === 429) {
+        setError('Too many requests. Please wait a moment and try again.');
+      } else if (err.response?.status === 404) {
+        setError('Movie not found. It may have been removed or the link is invalid.');
+      } else if (err.response?.status === 500) {
+        setError('Server error. Please try again or contact support if the issue persists.');
+      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else {
         setError(err.response?.data?.message || 'Failed to load movie');
-      } finally {
-        setLoading(false);
       }
-    };
-    if (id) fetchMovie();
+    }
   }, [id]);
+
+  useEffect(() => {
+    if (id && id !== 'undefined') {
+      fetchMovie();
+    } else {
+      setError('Invalid movie ID');
+    }
+  }, [id, fetchMovie]);
 
   useEffect(() => {
     const el = heroRef.current;
@@ -67,27 +93,21 @@ const MovieDetails: React.FC = () => {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '64px', 
-            marginBottom: '20px',
-            animation: 'pulse 2s infinite'
-          }}>🎬</div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '300' }}>Loading Movie Details...</h2>
-        </div>
-      </div>
-    );
-  }
+
+  // Show placeholder content while loading
+  const displayMovie = movie || {
+    _id: 'placeholder',
+    title: 'Loading...',
+    description: 'Please wait while we fetch the movie details...',
+    genre: [],
+    poster: 'https://via.placeholder.com/500x750/333/fff?text=Loading...',
+    releaseDate: new Date().toISOString(),
+    duration: 0,
+    rating: 'N/A',
+    imdbRating: 0,
+    language: 'N/A',
+    source: 'loading'
+  };
 
   if (error) {
     return (
@@ -105,21 +125,43 @@ const MovieDetails: React.FC = () => {
           <div style={{ fontSize: '64px', marginBottom: '20px' }}>😞</div>
           <h2 style={{ margin: '0 0 20px 0' }}>Oops! Something went wrong</h2>
           <p style={{ marginBottom: '30px', opacity: 0.9 }}>{error}</p>
-          <button
-            onClick={() => navigate('/movies')}
-            style={{
-              background: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              border: '2px solid white',
-              padding: '12px 30px',
-              borderRadius: '25px',
-              fontSize: '16px',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            Back to Movies
-          </button>
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => navigate('/movies')}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: '2px solid white',
+                padding: '12px 30px',
+                borderRadius: '25px',
+                fontSize: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Back to Movies
+            </button>
+            <button
+              onClick={() => {
+                setError('');
+                if (id && id !== 'undefined') {
+                  fetchMovie();
+                }
+              }}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: '2px solid white',
+                padding: '12px 30px',
+                borderRadius: '25px',
+                fontSize: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              🔄 Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -138,7 +180,7 @@ const MovieDetails: React.FC = () => {
           background: `
             linear-gradient(45deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.8) 100%),
             linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.7)),
-            url(${movie.poster})
+            url(${displayMovie.poster})
           `,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -219,8 +261,8 @@ const MovieDetails: React.FC = () => {
               border: '1px solid rgba(255,255,255,0.1)'
             }}>
               <img 
-                src={movie.poster}
-                alt={movie.title}
+                src={displayMovie.poster}
+                alt={displayMovie.title}
                 style={{ 
                   width: '100%', 
                   height: '600px', 
@@ -252,7 +294,7 @@ const MovieDetails: React.FC = () => {
                 textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
                 lineHeight: '1.1'
               }}>
-                {movie.title}
+                {displayMovie.title}
               </h1>
 
               {/* Rating & Genre Tags */}
@@ -270,7 +312,7 @@ const MovieDetails: React.FC = () => {
                   fontWeight: 'bold',
                   boxShadow: '0 4px 15px rgba(238,90,36,0.4)'
                 }}>
-                  {movie.rating}
+                  {displayMovie.rating || 'N/A'}
                 </span>
                 <span style={{ 
                   background: 'linear-gradient(135deg, #feca57, #ff9ff3)',
@@ -281,9 +323,9 @@ const MovieDetails: React.FC = () => {
                   color: '#333',
                   boxShadow: '0 4px 15px rgba(254,202,87,0.4)'
                 }}>
-                  ⭐ {movie.imdbRating?.toFixed(1) ?? 'N/A'}
+                  ⭐ {displayMovie.imdbRating?.toFixed(1) ?? 'N/A'}
                 </span>
-                {movie.genre?.map((g, i) => (
+                {displayMovie.genre?.map((g, i) => (
                   <span key={i} style={{ 
                     background: 'linear-gradient(135deg, #5f27cd, #00d2d3)',
                     padding: '8px 16px', 
@@ -304,7 +346,7 @@ const MovieDetails: React.FC = () => {
                 marginBottom: '30px',
                 color: 'rgba(255,255,255,0.9)'
               }}>
-                {movie.description}
+                {displayMovie.description}
               </p>
 
               {/* Movie Details */}
@@ -322,7 +364,7 @@ const MovieDetails: React.FC = () => {
                 }}>
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '5px' }}>Duration</div>
                   <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                    {Math.floor(movie.duration/60)}h {movie.duration%60}m
+                    {displayMovie.duration ? `${Math.floor(displayMovie.duration/60)}h ${displayMovie.duration%60}m` : displayMovie.runtime ? `${Math.floor(displayMovie.runtime/60)}h ${displayMovie.runtime%60}m` : 'N/A'}
                   </div>
                 </div>
                 <div style={{
@@ -333,7 +375,7 @@ const MovieDetails: React.FC = () => {
                 }}>
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '5px' }}>Release Date</div>
                   <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                    {new Date(movie.releaseDate).toLocaleDateString()}
+                    {new Date(displayMovie.releaseDate).toLocaleDateString()}
                   </div>
                 </div>
                 <div style={{
@@ -343,14 +385,26 @@ const MovieDetails: React.FC = () => {
                   border: '1px solid rgba(255,255,255,0.1)'
                 }}>
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '5px' }}>Language</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{movie.language}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{displayMovie.language}</div>
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => navigate(`/showtimes?movie=${movie._id}`)}
+                  onClick={() => {
+                    if (displayMovie.source === 'tmdb' || String(displayMovie._id).startsWith('tmdb_')) {
+                      const tmdbId = displayMovie.id || String(displayMovie._id).replace('tmdb_', '');
+                      const params = new URLSearchParams({
+                        movie: `tmdb:${tmdbId}`,
+                        title: displayMovie.title,
+                        poster: displayMovie.poster || ''
+                      });
+                      navigate(`/showtimes?${params.toString()}`);
+                    } else {
+                      navigate(`/showtimes?movie=${displayMovie._id}`);
+                    }
+                  }}
                   style={{
                     background: 'linear-gradient(135deg, #e50914, #b20710)',
                     color: 'white',
@@ -380,11 +434,11 @@ const MovieDetails: React.FC = () => {
                 <button
                   onClick={() => {
                     // Create multiple trailer search options
-                    const movieYear = new Date(movie.releaseDate).getFullYear();
+                    const movieYear = new Date(displayMovie.releaseDate).getFullYear();
                     const searchQueries = [
-                      `${movie.title} ${movieYear} official trailer`,
-                      `${movie.title} trailer ${movieYear}`,
-                      `${movie.title} official trailer`
+                      `${displayMovie.title} ${movieYear} official trailer`,
+                      `${displayMovie.title} trailer ${movieYear}`,
+                      `${displayMovie.title} official trailer`
                     ];
                     
                     // Try the most specific search first
@@ -414,7 +468,7 @@ const MovieDetails: React.FC = () => {
                     e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
                     e.currentTarget.style.transform = 'translateY(0)';
                   }}
-                  title={`Search for "${movie.title}" trailer on YouTube`}
+                  title={`Search for "${displayMovie.title}" trailer on YouTube`}
                 >
                   ▶️ Watch Trailer on YouTube
                 </button>
@@ -481,25 +535,25 @@ const MovieDetails: React.FC = () => {
                   📖 Movie Overview
                 </h3>
                 <p style={{ fontSize: '18px', lineHeight: '1.8', marginBottom: '30px' }}>
-                  {movie.description}
+                  {displayMovie.description}
                 </p>
-                {movie.director && (
+                {displayMovie.director && (
                   <div style={{ marginBottom: '20px' }}>
-                    <strong style={{ color: '#feca57' }}>Director:</strong> {movie.director}
+                    <strong style={{ color: '#feca57' }}>Director:</strong> {displayMovie.director}
                   </div>
                 )}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                   <div>
                     <strong style={{ color: '#feca57' }}>Genres:</strong><br/>
-                    {movie.genre?.join(', ')}
+                    {displayMovie.genre?.join(', ')}
                   </div>
                   <div>
                     <strong style={{ color: '#feca57' }}>Rating:</strong><br/>
-                    {movie.rating} • ⭐ {movie.imdbRating?.toFixed(1)}/10
+                    {displayMovie.rating || 'N/A'} • ⭐ {displayMovie.imdbRating?.toFixed(1) || 'N/A'}/10
                   </div>
                   <div>
                     <strong style={{ color: '#feca57' }}>Runtime:</strong><br/>
-                    {Math.floor(movie.duration/60)}h {movie.duration%60}m
+                    {displayMovie.duration ? `${Math.floor(displayMovie.duration/60)}h ${displayMovie.duration%60}m` : displayMovie.runtime ? `${Math.floor(displayMovie.runtime/60)}h ${displayMovie.runtime%60}m` : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -510,9 +564,9 @@ const MovieDetails: React.FC = () => {
                 <h3 style={{ fontSize: '28px', marginBottom: '30px', color: '#e50914' }}>
                   🎭 Cast & Crew
                 </h3>
-                {movie.cast && movie.cast.length > 0 ? (
+                {displayMovie.cast && displayMovie.cast.length > 0 ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-                    {movie.cast.map((actor, index) => (
+                    {displayMovie.cast.map((actor, index) => (
                       <div key={index} style={{
                         background: 'rgba(255,255,255,0.05)',
                         padding: '20px',
@@ -539,7 +593,7 @@ const MovieDetails: React.FC = () => {
                   </div>
                 ) : (
                   <p style={{ fontSize: '18px', textAlign: 'center', color: 'rgba(255,255,255,0.7)' }}>
-                    Cast information not available for this movie.
+                    Cast information not available for this displayMovie.
                   </p>
                 )}
               </div>
@@ -552,7 +606,7 @@ const MovieDetails: React.FC = () => {
                 </h3>
                 <div style={{ fontSize: '64px', marginBottom: '20px' }}>⭐</div>
                 <div style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '10px' }}>
-                  {movie.imdbRating?.toFixed(1) || 'N/A'}/10
+                  {displayMovie.imdbRating?.toFixed(1) || 'N/A'}/10
                 </div>
                 <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', marginBottom: '30px' }}>
                   Based on IMDb ratings
